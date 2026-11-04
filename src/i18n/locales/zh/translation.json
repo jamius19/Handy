@@ -680,6 +680,16 @@
           "placeholderWithOptions": "搜索或选择模型",
           "placeholderNoOptions": "输入模型名称",
           "refreshModels": "刷新模型"
+        },
+        "reasoning": {
+          "title": "Reasoning",
+          "description": "How much the model thinks before it answers. Off is fastest. Higher levels can help hard prompts but add delay. Models that don't support it ignore this.",
+          "levels": {
+            "off": "Off",
+            "low": "Low",
+            "medium": "Medium",
+            "high": "High"
+          }
         }
       },
       "prompts": {

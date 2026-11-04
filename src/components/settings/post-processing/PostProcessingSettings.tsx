@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { RefreshCcw } from "lucide-react";
-import { commands, type PostProcessApiFormat } from "@/bindings";
+import {
+  commands,
+  type PostProcessApiFormat,
+  type ReasoningLevel,
+} from "@/bindings";
 
 import { Alert } from "../../ui/Alert";
 import {
@@ -21,6 +25,8 @@ import { ModelSelect } from "../PostProcessingSettingsApi/ModelSelect";
 import { usePostProcessProviderState } from "../PostProcessingSettingsApi/usePostProcessProviderState";
 import { ShortcutInput } from "../ShortcutInput";
 import { useSettings } from "../../../hooks/useSettings";
+
+const REASONING_LEVELS: ReasoningLevel[] = ["off", "low", "medium", "high"];
 
 const PostProcessingSettingsApiComponent: React.FC = () => {
   const { t } = useTranslation();
@@ -175,6 +181,28 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
               />
             </ResetButton>
           </div>
+        </SettingContainer>
+      )}
+
+      {!state.isAppleProvider && (
+        <SettingContainer
+          title={t("settings.postProcessing.api.reasoning.title")}
+          description={t("settings.postProcessing.api.reasoning.description")}
+          descriptionMode="tooltip"
+          layout="horizontal"
+          grouped={true}
+        >
+          <Dropdown
+            options={REASONING_LEVELS.map((level) => ({
+              value: level,
+              label: t(`settings.postProcessing.api.reasoning.levels.${level}`),
+            }))}
+            selectedValue={state.reasoning}
+            onSelect={(value) =>
+              state.handleReasoningChange(value as ReasoningLevel)
+            }
+            disabled={state.isReasoningUpdating}
+          />
         </SettingContainer>
       )}
     </>

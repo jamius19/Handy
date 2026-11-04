@@ -5,6 +5,7 @@ import type {
   AppSettings as Settings,
   AudioDevice,
   PostProcessApiFormat,
+  ReasoningLevel,
   ChineseScript,
   TranscribeAcceleratorSetting,
   ShortcutActivation,
@@ -63,6 +64,10 @@ interface SettingsStore {
     apiKey: string,
   ) => Promise<void>;
   updatePostProcessModel: (providerId: string, model: string) => Promise<void>;
+  updatePostProcessReasoning: (
+    providerId: string,
+    level: ReasoningLevel,
+  ) => Promise<void>;
   fetchPostProcessModels: (providerId: string) => Promise<string[]>;
   setPostProcessModelOptions: (providerId: string, models: string[]) => void;
 
@@ -617,6 +622,20 @@ export const useSettingsStore = create<SettingsStore>()(
 
     updatePostProcessModel: async (providerId, model) => {
       return get().updatePostProcessSetting("model", providerId, model);
+    },
+
+    updatePostProcessReasoning: async (providerId, level) => {
+      const { setUpdating, refreshSettings } = get();
+      const updateKey = `post_process_reasoning:${providerId}`;
+      setUpdating(updateKey, true);
+      try {
+        await commands.changePostProcessReasoningSetting(providerId, level);
+        await refreshSettings();
+      } catch (error) {
+        console.error("Failed to update post-process reasoning:", error);
+      } finally {
+        setUpdating(updateKey, false);
+      }
     },
 
     fetchPostProcessModels: async (providerId) => {

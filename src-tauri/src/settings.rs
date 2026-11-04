@@ -106,6 +106,19 @@ pub enum PostProcessApiFormat {
     Anthropic,
 }
 
+/// How much a post-processing model may reason before it answers. Each
+/// provider gets the field its API understands (see `llm_client`).
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq, Type)]
+#[serde(rename_all = "lowercase")]
+pub enum ReasoningLevel {
+    /// Post-processing rarely gains from reasoning, and it adds latency.
+    #[default]
+    Off,
+    Low,
+    Medium,
+    High,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct PostProcessProvider {
     pub id: String,
@@ -490,6 +503,9 @@ pub struct AppSettings {
     pub post_process_api_keys: SecretMap,
     #[serde(default = "default_post_process_models")]
     pub post_process_models: HashMap<String, String>,
+    /// Reasoning level per provider id; a provider without one is Off.
+    #[serde(default)]
+    pub post_process_reasoning: HashMap<String, ReasoningLevel>,
     #[serde(default = "default_post_process_prompts")]
     pub post_process_prompts: Vec<LLMPrompt>,
     #[serde(default)]
@@ -1039,6 +1055,7 @@ pub fn get_default_settings() -> AppSettings {
         post_process_providers: default_post_process_providers(),
         post_process_api_keys: default_post_process_api_keys(),
         post_process_models: default_post_process_models(),
+        post_process_reasoning: HashMap::new(),
         post_process_prompts: default_post_process_prompts(),
         post_process_selected_prompt_id: None,
         mute_while_recording: false,

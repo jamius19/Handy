@@ -680,6 +680,16 @@
           "placeholderWithOptions": "मोडेल खोज्नुहोस् वा चयन गर्नुहोस्",
           "placeholderNoOptions": "मोडेलको नाम टाइप गर्नुहोस्",
           "refreshModels": "मोडेलहरू रिफ्रेस गर्नुहोस्"
+        },
+        "reasoning": {
+          "title": "Reasoning",
+          "description": "How much the model thinks before it answers. Off is fastest. Higher levels can help hard prompts but add delay. Models that don't support it ignore this.",
+          "levels": {
+            "off": "Off",
+            "low": "Low",
+            "medium": "Medium",
+            "high": "High"
+          }
         }
       },
       "prompts": {

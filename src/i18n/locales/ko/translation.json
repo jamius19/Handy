@@ -680,6 +680,16 @@
           "placeholderWithOptions": "모델 검색 또는 선택",
           "placeholderNoOptions": "모델 이름 입력",
           "refreshModels": "모델 새로고침"
+        },
+        "reasoning": {
+          "title": "Reasoning",
+          "description": "How much the model thinks before it answers. Off is fastest. Higher levels can help hard prompts but add delay. Models that don't support it ignore this.",
+          "levels": {
+            "off": "Off",
+            "low": "Low",
+            "medium": "Medium",
+            "high": "High"
+          }
         }
       },
       "prompts": {

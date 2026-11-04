@@ -4,6 +4,7 @@ import {
   commands,
   type PostProcessApiFormat,
   type PostProcessProvider,
+  type ReasoningLevel,
 } from "@/bindings";
 import type { ModelOption } from "./types";
 import type { DropdownOption } from "../../ui/Dropdown";
@@ -26,6 +27,9 @@ type PostProcessProviderState = {
   isApiKeyUpdating: boolean;
   model: string;
   handleModelChange: (value: string) => void;
+  reasoning: ReasoningLevel;
+  handleReasoningChange: (value: ReasoningLevel) => void;
+  isReasoningUpdating: boolean;
   modelOptions: ModelOption[];
   isModelUpdating: boolean;
   isFetchingModels: boolean;
@@ -46,6 +50,7 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     updatePostProcessApiFormat,
     updatePostProcessApiKey,
     updatePostProcessModel,
+    updatePostProcessReasoning,
     fetchPostProcessModels,
     postProcessModelOptions,
   } = useSettings();
@@ -73,6 +78,8 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
   const apiFormat = selectedProvider?.api_format ?? "openai";
   const apiKey = settings?.post_process_api_keys?.[selectedProviderId] ?? "";
   const model = settings?.post_process_models?.[selectedProviderId] ?? "";
+  const reasoning: ReasoningLevel =
+    settings?.post_process_reasoning?.[selectedProviderId] ?? "off";
 
   const providerOptions = useMemo<DropdownOption[]>(() => {
     return providers.map((provider) => ({
@@ -167,6 +174,15 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     [model, selectedProviderId, updatePostProcessModel],
   );
 
+  const handleReasoningChange = useCallback(
+    (value: ReasoningLevel) => {
+      if (value !== reasoning) {
+        void updatePostProcessReasoning(selectedProviderId, value);
+      }
+    },
+    [reasoning, selectedProviderId, updatePostProcessReasoning],
+  );
+
   const handleModelSelect = useCallback(
     (value: string) => {
       void updatePostProcessModel(selectedProviderId, value.trim());
@@ -222,6 +238,9 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
   const isModelUpdating = isUpdating(
     `post_process_model:${selectedProviderId}`,
   );
+  const isReasoningUpdating = isUpdating(
+    `post_process_reasoning:${selectedProviderId}`,
+  );
   const isFetchingModels = isUpdating(
     `post_process_models_fetch:${selectedProviderId}`,
   );
@@ -248,6 +267,9 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     isApiKeyUpdating,
     model,
     handleModelChange,
+    reasoning,
+    handleReasoningChange,
+    isReasoningUpdating,
     modelOptions,
     isModelUpdating,
     isFetchingModels,

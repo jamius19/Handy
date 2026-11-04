@@ -1,4 +1,4 @@
-use crate::settings::{PostProcessApiFormat, PostProcessProvider};
+use crate::settings::{PostProcessApiFormat, PostProcessProvider, ReasoningLevel};
 use log::{debug, error, info};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, REFERER, USER_AGENT};
 use serde::{Deserialize, Serialize};
@@ -36,9 +36,9 @@ struct ReasoningConfig {
     exclude: Option<bool>,
 }
 
-/// Request fields used to ask an endpoint to skip reasoning/thinking.
+/// Request fields that set how much an endpoint reasons/thinks.
 /// Providers disagree on the field name and accepted values, so at most one of
-/// these is set per request (see `reasoning_disable_params`).
+/// these is set per request (see `reasoning_params`).
 #[derive(Debug, Serialize, Clone, Default, PartialEq)]
 struct ReasoningParams {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,16 +55,31 @@ impl ReasoningParams {
     }
 }
 
-/// Pick the reasoning-disable request fields an endpoint understands.
+/// The OpenAI-style effort value for a level ("none" turns reasoning off).
+fn effort_value(level: ReasoningLevel) -> &'static str {
+    match level {
+        ReasoningLevel::Off => "none",
+        ReasoningLevel::Low => "low",
+        ReasoningLevel::Medium => "medium",
+        ReasoningLevel::High => "high",
+    }
+}
+
+/// Pick the reasoning request fields an endpoint understands for `level`.
 /// Unknown endpoints get the common OpenAI-style field; if they reject it,
 /// the request is retried without it (see `send_chat_completion_with_schema`).
-fn reasoning_disable_params(provider: &PostProcessProvider) -> ReasoningParams {
+fn reasoning_params(provider: &PostProcessProvider, level: ReasoningLevel) -> ReasoningParams {
     let base_url = provider.base_url.to_lowercase();
     if base_url.contains("api.deepseek.com") {
-        // DeepSeek rejects reasoning_effort "none" and uses its own field:
+        // DeepSeek rejects reasoning_effort and uses its own on/off field:
         // https://api-docs.deepseek.com/guides/thinking_mode
+        let kind = if level == ReasoningLevel::Off {
+            "disabled"
+        } else {
+            "enabled"
+        };
         ReasoningParams {
-            thinking: Some(serde_json::json!({ "type": "disabled" })),
+            thinking: Some(serde_json::json!({ "type": kind })),
             ..Default::default()
         }
     } else if provider.id == "openrouter" {
@@ -72,20 +87,20 @@ fn reasoning_disable_params(provider: &PostProcessProvider) -> ReasoningParams {
         // of the response so it can't pollute structured-output JSON parsing
         ReasoningParams {
             reasoning: Some(ReasoningConfig {
-                effort: Some("none".to_string()),
+                effort: Some(effort_value(level).to_string()),
                 exclude: Some(true),
             }),
             ..Default::default()
         }
     } else {
         ReasoningParams {
-            reasoning_effort: Some("none".to_string()),
+            reasoning_effort: Some(effort_value(level).to_string()),
             ..Default::default()
         }
     }
 }
 
-/// Endpoints (base_url|model) that rejected the reasoning-disable fields with a
+/// Endpoints (base_url|model) that rejected the reasoning fields with a
 /// 4xx. Remembered for the lifetime of the process so every dictation after the
 /// first skips the doomed attempt and goes straight to a plain request.
 fn reasoning_rejections() -> &'static Mutex<HashSet<String>> {
@@ -141,11 +156,57 @@ struct ChatMessageResponse {
 /// required. Ample for a cleaned-up dictation.
 const ANTHROPIC_MAX_TOKENS: u32 = 4096;
 
+/// Thinking tokens count against `max_tokens` too, so with reasoning on the
+/// budget grows to leave the answer room.
+const ANTHROPIC_MAX_TOKENS_THINKING: u32 = 16_000;
+
 #[derive(Debug, Serialize)]
 struct AnthropicMessagesRequest {
     model: String,
     max_tokens: u32,
     messages: Vec<ChatMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_config: Option<Value>,
+}
+
+impl AnthropicMessagesRequest {
+    /// Off sends no thinking fields, as before. Any other level turns on
+    /// adaptive thinking at that effort; current Claude models reject the
+    /// older fixed `budget_tokens` form.
+    fn new(model: &str, prompt: String, reasoning: ReasoningLevel) -> Self {
+        let mut request = Self {
+            model: model.to_string(),
+            max_tokens: ANTHROPIC_MAX_TOKENS,
+            messages: vec![ChatMessage {
+                role: "user".to_string(),
+                content: prompt,
+            }],
+            thinking: None,
+            output_config: None,
+        };
+        if reasoning != ReasoningLevel::Off {
+            request.max_tokens = ANTHROPIC_MAX_TOKENS_THINKING;
+            request.thinking = Some(serde_json::json!({ "type": "adaptive" }));
+            request.output_config = Some(serde_json::json!({ "effort": effort_value(reasoning) }));
+        }
+        request
+    }
+
+    fn has_reasoning(&self) -> bool {
+        self.thinking.is_some() || self.output_config.is_some()
+    }
+
+    /// The same request without thinking, for a model that rejects it.
+    fn without_reasoning(self) -> Self {
+        Self {
+            max_tokens: ANTHROPIC_MAX_TOKENS,
+            thinking: None,
+            output_config: None,
+            ..self
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -379,34 +440,26 @@ pub async fn send_chat_completion(
     api_key: String,
     model: &str,
     prompt: String,
-    disable_reasoning: bool,
+    reasoning: ReasoningLevel,
 ) -> Result<Option<String>, String> {
     if provider.api_format == PostProcessApiFormat::Anthropic {
-        return send_anthropic_message(provider, api_key, model, prompt).await;
+        return send_anthropic_message(provider, api_key, model, prompt, reasoning).await;
     }
 
-    send_chat_completion_with_schema(
-        provider,
-        api_key,
-        model,
-        prompt,
-        None,
-        None,
-        disable_reasoning,
-    )
-    .await
+    send_chat_completion_with_schema(provider, api_key, model, prompt, None, None, reasoning).await
 }
 
 /// Send a chat completion request with structured output support.
 /// When json_schema is provided, uses structured outputs mode.
 /// system_prompt is used as the system message when provided.
 ///
-/// When disable_reasoning is set, the request carries the reasoning-disable
-/// fields the endpoint is expected to understand. Not every OpenAI-compatible
-/// endpoint accepts them (DeepSeek, Gemini's compat layer, and some OpenRouter
-/// upstreams reject with 400), so a 400/422 answer to such a request triggers
-/// one retry without the fields, and the rejection is remembered per
-/// (base_url, model) so later requests skip the failing attempt entirely.
+/// The request carries the reasoning fields for `reasoning` that the endpoint
+/// is expected to understand. Not every OpenAI-compatible endpoint or model
+/// accepts them (non-reasoning models, Gemini's compat layer, and some
+/// OpenRouter upstreams reject with 400), so a 400/422 answer to such a
+/// request triggers one retry without the fields, and the rejection is
+/// remembered per (base_url, model) so later requests skip the failing
+/// attempt entirely.
 pub async fn send_chat_completion_with_schema(
     provider: &PostProcessProvider,
     api_key: String,
@@ -414,7 +467,7 @@ pub async fn send_chat_completion_with_schema(
     user_content: String,
     system_prompt: Option<String>,
     json_schema: Option<Value>,
-    disable_reasoning: bool,
+    reasoning: ReasoningLevel,
 ) -> Result<Option<String>, String> {
     let base_url = provider.base_url.trim_end_matches('/');
     let url = format!("{}/chat/completions", base_url);
@@ -454,10 +507,10 @@ pub async fn send_chat_completion_with_schema(
     });
 
     let key = endpoint_key(provider, model);
-    let reasoning = if disable_reasoning && !is_known_rejected(&key) {
-        reasoning_disable_params(provider)
-    } else {
+    let reasoning = if is_known_rejected(&key) {
         ReasoningParams::default()
+    } else {
+        reasoning_params(provider, reasoning)
     };
 
     let mut request_body = ChatCompletionRequest {
@@ -482,7 +535,7 @@ pub async fn send_chat_completion_with_schema(
         sanitized_url(response.url())
     );
 
-    // A 400/422 on a request carrying reasoning-disable fields is almost always
+    // A 400/422 on a request carrying reasoning fields is almost always
     // the endpoint rejecting those fields — retry once without them.
     if !status.is_success()
         && matches!(status.as_u16(), 400 | 422)
@@ -492,7 +545,7 @@ pub async fn send_chat_completion_with_schema(
             report_reqwest_error("Failed to read reasoning rejection response", &e)
         });
         info!(
-            "Endpoint rejected request with reasoning disabled (status {}): {}. Retrying without reasoning fields",
+            "Endpoint rejected request with reasoning fields (status {}): {}. Retrying without reasoning fields",
             status, error_text
         );
 
@@ -553,13 +606,15 @@ pub async fn send_chat_completion_with_schema(
 /// Send a single-prompt request to an Anthropic Messages API (`/messages`).
 /// Used by every provider with the Anthropic format (the built-in Anthropic
 /// provider and a custom provider set to it). None of them use structured
-/// output, and thinking is off unless requested, so no reasoning fields are
-/// needed.
+/// output. Thinking is off unless `reasoning` asks for it; a model that
+/// rejects the thinking fields (older Claude models, some compatible servers)
+/// gets one retry without them, remembered like the OpenAI-style rejections.
 async fn send_anthropic_message(
     provider: &PostProcessProvider,
     api_key: String,
     model: &str,
     prompt: String,
+    reasoning: ReasoningLevel,
 ) -> Result<Option<String>, String> {
     let url = format!("{}/messages", provider.base_url.trim_end_matches('/'));
 
@@ -568,28 +623,47 @@ async fn send_anthropic_message(
         sanitized_url_for_log(&url)
     );
 
-    let request_body = AnthropicMessagesRequest {
-        model: model.to_string(),
-        max_tokens: ANTHROPIC_MAX_TOKENS,
-        messages: vec![ChatMessage {
-            role: "user".to_string(),
-            content: prompt,
-        }],
-    };
+    let key = endpoint_key(provider, model);
+    let mut request_body = AnthropicMessagesRequest::new(model, prompt, reasoning);
+    if is_known_rejected(&key) {
+        request_body = request_body.without_reasoning();
+    }
 
-    let response = create_client(provider, &api_key)?
+    let client = create_client(provider, &api_key)?;
+    let mut response = client
         .post(&url)
         .json(&request_body)
         .send()
         .await
         .map_err(|e| report_reqwest_error("HTTP request failed", &e))?;
-    let status = response.status();
+    let mut status = response.status();
     debug!(
         "Anthropic Messages response received with status {} over {:?} from {}",
         status,
         response.version(),
         sanitized_url(response.url())
     );
+
+    if status.as_u16() == 400 && request_body.has_reasoning() {
+        let error_text = response.text().await.unwrap_or_else(|e| {
+            report_reqwest_error("Failed to read thinking rejection response", &e)
+        });
+        info!(
+            "Endpoint rejected request with thinking (status {}): {}. Retrying without thinking",
+            status, error_text
+        );
+        request_body = request_body.without_reasoning();
+        response = client
+            .post(&url)
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| report_reqwest_error("HTTP retry failed", &e))?;
+        status = response.status();
+        if status.is_success() {
+            remember_rejection(key);
+        }
+    }
 
     if !status.is_success() {
         let error_text = response
@@ -612,7 +686,7 @@ async fn send_anthropic_message(
     if message.stop_reason.as_deref() == Some("max_tokens") {
         return Err(format!(
             "Response was truncated at the {} token limit",
-            ANTHROPIC_MAX_TOKENS
+            request_body.max_tokens
         ));
     }
 
@@ -666,23 +740,66 @@ pub async fn fetch_models(
     // Handle OpenAI format: { data: [ { id: "..." }, ... ] }
     if let Some(data) = parsed.get("data").and_then(|d| d.as_array()) {
         for entry in data {
-            if let Some(id) = entry.get("id").and_then(|i| i.as_str()) {
+            let id = entry
+                .get("id")
+                .and_then(|i| i.as_str())
+                .or_else(|| entry.get("name").and_then(|n| n.as_str()));
+            if let Some(id) = id.filter(|id| is_text_model(id, Some(entry))) {
                 models.push(id.to_string());
-            } else if let Some(name) = entry.get("name").and_then(|n| n.as_str()) {
-                models.push(name.to_string());
             }
         }
     }
     // Handle array format: [ "model1", "model2", ... ]
     else if let Some(array) = parsed.as_array() {
         for entry in array {
-            if let Some(model) = entry.as_str() {
+            if let Some(model) = entry.as_str().filter(|id| is_text_model(id, None)) {
                 models.push(model.to_string());
             }
         }
     }
 
     Ok(models)
+}
+
+/// Id fragments of models that don't take and return text, so can't
+/// post-process: speech, audio, image, video, embedding and moderation models.
+const NON_TEXT_MODEL_MARKERS: &[&str] = &[
+    "whisper",
+    "transcribe",
+    "tts",
+    "speech",
+    "audio",
+    "realtime",
+    "embed",
+    "rerank",
+    "moderation",
+    "dall-e",
+    "image",
+    "sora",
+    "video",
+    "cogview",
+];
+
+/// Whether a listed model is a text LLM. A provider that describes its models'
+/// modalities (OpenRouter's `architecture`) is taken at its word; others, such
+/// as OpenAI, list only ids, so those are matched against known non-text
+/// families. A model filtered out by mistake can still be typed in by name.
+fn is_text_model(id: &str, entry: Option<&Value>) -> bool {
+    let modalities = |field: &str| {
+        entry
+            .and_then(|e| e.get("architecture"))
+            .and_then(|a| a.get(field))
+            .and_then(|m| m.as_array())
+            .map(|m| m.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+    };
+    if let Some(output) = modalities("output_modalities") {
+        let input = modalities("input_modalities").unwrap_or_default();
+        return output.iter().all(|m| *m == "text") && input.contains(&"text");
+    }
+    let id = id.to_lowercase();
+    !NON_TEXT_MODEL_MARKERS
+        .iter()
+        .any(|marker| id.contains(marker))
 }
 
 #[cfg(test)]
@@ -842,33 +959,65 @@ mod tests {
         assert!(json.get("thinking").is_none());
     }
 
+    const LEVELS: [(ReasoningLevel, &str); 4] = [
+        (ReasoningLevel::Off, "none"),
+        (ReasoningLevel::Low, "low"),
+        (ReasoningLevel::Medium, "medium"),
+        (ReasoningLevel::High, "high"),
+    ];
+
     #[test]
     fn custom_provider_uses_top_level_reasoning_effort() {
-        let params = reasoning_disable_params(&provider("custom", "http://localhost:11434/v1"));
-        let json = request_json(params);
-        assert_eq!(json["reasoning_effort"], "none");
-        assert!(json.get("reasoning").is_none());
-        assert!(json.get("thinking").is_none());
+        let custom = provider("custom", "http://localhost:11434/v1");
+        for (level, effort) in LEVELS {
+            let json = request_json(reasoning_params(&custom, level));
+            assert_eq!(json["reasoning_effort"], effort, "{level:?}");
+            assert!(json.get("reasoning").is_none());
+            assert!(json.get("thinking").is_none());
+        }
     }
 
     #[test]
     fn openrouter_uses_nested_reasoning_object() {
-        let params =
-            reasoning_disable_params(&provider("openrouter", "https://openrouter.ai/api/v1"));
-        let json = request_json(params);
-        assert!(json.get("reasoning_effort").is_none());
-        assert_eq!(json["reasoning"]["effort"], "none");
-        assert_eq!(json["reasoning"]["exclude"], true);
-        assert!(json.get("thinking").is_none());
+        let openrouter = provider("openrouter", "https://openrouter.ai/api/v1");
+        for (level, effort) in LEVELS {
+            let json = request_json(reasoning_params(&openrouter, level));
+            assert!(json.get("reasoning_effort").is_none());
+            assert_eq!(json["reasoning"]["effort"], effort, "{level:?}");
+            assert_eq!(json["reasoning"]["exclude"], true);
+            assert!(json.get("thinking").is_none());
+        }
     }
 
     #[test]
-    fn deepseek_base_url_uses_thinking_disabled() {
-        let params = reasoning_disable_params(&provider("custom", "https://api.deepseek.com"));
-        let json = request_json(params);
+    fn deepseek_base_url_switches_thinking_on_or_off() {
+        let deepseek = provider("custom", "https://api.deepseek.com");
+        let json = request_json(reasoning_params(&deepseek, ReasoningLevel::Off));
         assert!(json.get("reasoning_effort").is_none());
         assert!(json.get("reasoning").is_none());
         assert_eq!(json["thinking"]["type"], "disabled");
+
+        // DeepSeek has no levels: any of them just turns thinking on.
+        for level in [
+            ReasoningLevel::Low,
+            ReasoningLevel::Medium,
+            ReasoningLevel::High,
+        ] {
+            let json = request_json(reasoning_params(&deepseek, level));
+            assert_eq!(json["thinking"]["type"], "enabled", "{level:?}");
+            assert!(json.get("reasoning_effort").is_none());
+        }
+    }
+
+    #[test]
+    fn reasoning_level_is_stored_in_lowercase() {
+        assert_eq!(
+            serde_json::to_value(ReasoningLevel::Medium).unwrap(),
+            "medium"
+        );
+        let level: ReasoningLevel = serde_json::from_str(r#""high""#).unwrap();
+        assert_eq!(level, ReasoningLevel::High);
+        assert_eq!(ReasoningLevel::default(), ReasoningLevel::Off);
     }
 
     #[test]
@@ -917,19 +1066,117 @@ mod tests {
 
     #[test]
     fn anthropic_request_carries_required_max_tokens() {
-        let request = AnthropicMessagesRequest {
-            model: "claude-haiku".to_string(),
-            max_tokens: ANTHROPIC_MAX_TOKENS,
-            messages: vec![ChatMessage {
-                role: "user".to_string(),
-                content: "hi".to_string(),
-            }],
-        };
+        let request =
+            AnthropicMessagesRequest::new("claude-haiku", "hi".to_string(), ReasoningLevel::Off);
         let json = serde_json::to_value(&request).unwrap();
         assert_eq!(json["max_tokens"], ANTHROPIC_MAX_TOKENS);
         assert_eq!(json["messages"][0]["role"], "user");
         assert!(json.get("stream").is_none());
         assert!(json.get("reasoning_effort").is_none());
+        // Off sends no thinking fields at all, as before levels existed.
+        assert!(json.get("thinking").is_none());
+        assert!(json.get("output_config").is_none());
+    }
+
+    #[test]
+    fn anthropic_levels_use_adaptive_thinking_with_effort() {
+        for (level, effort) in &LEVELS[1..] {
+            let request =
+                AnthropicMessagesRequest::new("claude-opus-5-5", "hi".to_string(), *level);
+            let json = serde_json::to_value(&request).unwrap();
+            assert_eq!(json["thinking"]["type"], "adaptive", "{level:?}");
+            assert!(json["thinking"].get("budget_tokens").is_none());
+            assert_eq!(json["output_config"]["effort"], *effort);
+            // Thinking shares max_tokens with the answer, so it gets more room.
+            assert_eq!(json["max_tokens"], ANTHROPIC_MAX_TOKENS_THINKING);
+        }
+    }
+
+    #[test]
+    fn anthropic_request_without_reasoning_drops_thinking() {
+        let request =
+            AnthropicMessagesRequest::new("claude-haiku", "hi".to_string(), ReasoningLevel::High);
+        assert!(request.has_reasoning());
+        let request = request.without_reasoning();
+        assert!(!request.has_reasoning());
+        let json = serde_json::to_value(&request).unwrap();
+        assert!(json.get("thinking").is_none());
+        assert!(json.get("output_config").is_none());
+        assert_eq!(json["max_tokens"], ANTHROPIC_MAX_TOKENS);
+        assert_eq!(json["messages"][0]["content"], "hi");
+    }
+
+    #[test]
+    fn openai_model_list_keeps_only_text_models() {
+        let text = [
+            "gpt-4o-mini",
+            "gpt-5.1",
+            "o4-mini",
+            "gpt-4o-search-preview",
+            "llama-3.3-70b-versatile",
+            "claude-opus-5-5",
+            "glm-4.6",
+        ];
+        for id in text {
+            assert!(is_text_model(id, None), "{id} should be kept");
+        }
+        let not_text = [
+            "whisper-1",
+            "gpt-transcribe",
+            "gpt-4o-mini-transcribe",
+            "gpt-4o-mini-tts",
+            "playai-tts",
+            "gpt-4o-audio-preview",
+            "gpt-realtime",
+            "text-embedding-3-large",
+            "nomic-embed-text",
+            "omni-moderation-latest",
+            "dall-e-3",
+            "gpt-image-1",
+            "sora-2",
+            "cogview-4",
+            "distil-whisper-large-v3-en",
+        ];
+        for id in not_text {
+            assert!(!is_text_model(id, None), "{id} should be filtered out");
+        }
+    }
+
+    #[test]
+    fn listed_modalities_decide_over_the_id() {
+        let modal = |input: &[&str], output: &[&str]| {
+            serde_json::json!({ "architecture": {
+                "input_modalities": input, "output_modalities": output
+            }})
+        };
+        // A vision LLM still answers in text.
+        assert!(is_text_model(
+            "some/vision-model",
+            Some(&modal(&["text", "image"], &["text"]))
+        ));
+        // An image generator is dropped even though its id looks like an LLM.
+        assert!(!is_text_model(
+            "google/gemini-2.5-flash",
+            Some(&modal(&["text"], &["image", "text"]))
+        ));
+        // An id marker doesn't override modalities that say text in, text out.
+        assert!(is_text_model(
+            "vendor/audio-named-llm",
+            Some(&modal(&["text"], &["text"]))
+        ));
+    }
+
+    #[tokio::test]
+    async fn fetch_models_drops_non_text_models() {
+        let base_url = serve_one_response(
+            "200 OK",
+            r#"{"data":[{"id":"gpt-4o-mini"},{"id":"whisper-1"},{"id":"gpt-4o-mini-tts"},{"id":"gpt-5.1"},{"id":"text-embedding-3-small"}]}"#,
+        )
+        .await;
+        let models = fetch_models(&provider("custom", &base_url), String::new())
+            .await
+            .unwrap();
+        assert_eq!(models, vec!["gpt-4o-mini", "gpt-5.1"]);
     }
 
     #[test]
@@ -956,7 +1203,7 @@ mod tests {
             "key".to_string(),
             "claude-haiku",
             "raw text".to_string(),
-            true,
+            ReasoningLevel::Off,
         )
         .await;
         assert_eq!(result, Ok(Some("Cleaned text".to_string())));
@@ -974,7 +1221,7 @@ mod tests {
             "key".to_string(),
             "test-model",
             "raw text".to_string(),
-            false,
+            ReasoningLevel::Off,
         )
         .await;
         assert!(result.unwrap_err().contains("truncated"));
@@ -992,7 +1239,7 @@ mod tests {
             "key".to_string(),
             "claude-haiku",
             "raw text".to_string(),
-            true,
+            ReasoningLevel::Off,
         )
         .await;
         assert!(result.unwrap_err().contains("truncated"));
