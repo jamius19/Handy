@@ -236,7 +236,7 @@ impl ProviderClient {
 
 /// Process-wide client. A short idle timeout and TCP keepalive keep the pool
 /// from handing out connections that died during sleep or a network change.
-fn shared_client() -> Result<&'static reqwest::Client, String> {
+pub(crate) fn shared_client() -> Result<&'static reqwest::Client, String> {
     static SHARED: OnceLock<reqwest::Client> = OnceLock::new();
     if let Some(client) = SHARED.get() {
         return Ok(client);
@@ -339,7 +339,7 @@ fn sanitized_url_for_log(url: &str) -> String {
         .unwrap_or_else(|_| "<invalid URL>".to_string())
 }
 
-fn report_reqwest_error(context: &str, error: &reqwest::Error) -> String {
+pub(crate) fn report_reqwest_error(context: &str, error: &reqwest::Error) -> String {
     let kinds = reqwest_error_kinds(error);
     let url = error
         .url()

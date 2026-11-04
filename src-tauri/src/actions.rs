@@ -9,6 +9,7 @@ use crate::managers::transcription::policy::{live_decode, LiveDecode, ModelTrait
 use crate::managers::transcription::StreamWorkKind;
 use crate::managers::transcription::{Transcription, TranscriptionManager};
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
+use crate::openai_transcription;
 use crate::settings::{get_settings, AppSettings, OverlayStyle, APPLE_INTELLIGENCE_PROVIDER_ID};
 use crate::shortcut;
 use crate::tray::{set_tray_state, TrayIconState};
@@ -483,9 +484,12 @@ impl ShortcutAction for TranscribeAction {
         let tm = app.state::<Arc<TranscriptionManager>>();
         let rm = app.state::<Arc<AudioRecordingManager>>();
 
+        // OpenAI transcribes in the cloud, so no local model is needed.
+        let openai_transcription = get_settings(app).openai_transcription_enabled;
+
         // Load ASR model and VAD model in parallel
         let kickoff_started = Instant::now();
-        let load_started = tm.initiate_model_load(true);
+        let load_started = !openai_transcription && tm.initiate_model_load(true);
         let rm_clone = Arc::clone(&rm);
         std::thread::spawn(move || {
             if let Err(e) = rm_clone.preload_vad() {
@@ -496,7 +500,7 @@ impl ShortcutAction for TranscribeAction {
 
         // Don't open the mic if nothing can transcribe the recording. A load
         // started above reports its own failure; one already running doesn't.
-        if !tm.is_model_loaded() {
+        if !openai_transcription && !tm.is_model_loaded() {
             let selected_model = get_settings(app).selected_model;
             if let Err(e) = app
                 .state::<Arc<ModelManager>>()
@@ -528,10 +532,12 @@ impl ShortcutAction for TranscribeAction {
         // Use the app-facing model capability as the single pre-recording source
         // for live streaming decisions. Unknown support is represented as false
         // until the model registry is updated by discovery or runtime load.
-        let model_supports_streaming = selected_model_info
-            .as_ref()
-            .map(|m| m.supports_streaming)
-            .unwrap_or(false);
+        // OpenAI transcribes the whole recording at the end, so no live decode.
+        let model_supports_streaming = !openai_transcription
+            && selected_model_info
+                .as_ref()
+                .map(|m| m.supports_streaming)
+                .unwrap_or(false);
         let vad_policy = if !settings.vad_enabled {
             VadPolicy::Disabled
         } else if model_supports_streaming {
@@ -692,6 +698,7 @@ impl ShortcutAction for TranscribeAction {
 
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
         let post_process = self.post_process;
+        let openai_transcription = get_settings(app).openai_transcription_enabled;
         let cancel_generation = rm.cancel_generation();
 
         tauri::async_runtime::spawn(async move {
@@ -744,7 +751,20 @@ impl ShortcutAction for TranscribeAction {
                     // otherwise a batch run of the samples. A cancel is surfaced
                     // as an error, so it never starts a batch run.
                     let transcription_time = Instant::now();
-                    let transcription_result = tm.transcribe_recording(samples);
+                    let transcription_result = if openai_transcription {
+                        // Drop a live decode left from a start with the local
+                        // model, so it can't block the next start_stream.
+                        tm.cancel_stream();
+                        complete_unless_cancelled(
+                            openai_transcription::transcribe(&ah, &samples),
+                            || rm.was_cancelled_since(cancel_generation),
+                        )
+                        .await
+                        // The cancel check below handles a cancelled upload.
+                        .unwrap_or_else(|| Err(anyhow::anyhow!("Transcription cancelled")))
+                    } else {
+                        tm.transcribe_recording(samples)
+                    };
 
                     // Await WAV save and verify
                     let wav_saved = match wav_handle.await {

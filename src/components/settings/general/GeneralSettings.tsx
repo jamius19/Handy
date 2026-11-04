@@ -12,6 +12,7 @@ import { useSettings } from "../../../hooks/useSettings";
 import { VolumeSlider } from "../VolumeSlider";
 import { MuteWhileRecording } from "../MuteWhileRecording";
 import { ModelSettingsCard } from "./ModelSettingsCard";
+import { OpenAiTranscription } from "../OpenAiTranscription";
 import { PreferredLanguages } from "../PreferredLanguages";
 import { ChineseScriptSetting } from "../ChineseScript";
 import { isChinese } from "@/lib/utils/languageSuggestions";
@@ -37,6 +38,9 @@ export const GeneralSettings: React.FC = () => {
         {speaksChinese && (
           <ChineseScriptSetting descriptionMode="tooltip" grouped={true} />
         )}
+      </SettingsGroup>
+      <SettingsGroup title={t("settings.openaiTranscription.title")}>
+        <OpenAiTranscription descriptionMode="tooltip" grouped={true} />
       </SettingsGroup>
       <ModelSettingsCard />
       <SettingsGroup title={t("settings.sound.title")}>

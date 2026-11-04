@@ -452,6 +452,10 @@ pub struct AppSettings {
     pub translate_to_english: bool,
     #[serde(default = "default_selected_language")]
     pub selected_language: String,
+    /// Transcribe dictation with OpenAI's `gpt-transcribe` instead of the
+    /// local model, using the OpenAI post-processing API key.
+    #[serde(default)]
+    pub openai_transcription_enabled: bool,
     /// Every language the person dictates in (codes, e.g. ["en", "zh"]),
     /// picked during onboarding. Empty until then.
     #[serde(default)]
@@ -1022,6 +1026,7 @@ pub fn get_default_settings() -> AppSettings {
         selected_output_device: None,
         translate_to_english: false,
         selected_language: "auto".to_string(),
+        openai_transcription_enabled: false,
         overlay_position: default_overlay_position(),
         debug_mode: false,
         log_level: default_log_level(),

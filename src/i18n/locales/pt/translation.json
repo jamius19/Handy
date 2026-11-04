@@ -436,6 +436,11 @@
     "languages": {
       "title": "Idiomas"
     },
+    "openaiTranscription": {
+      "title": "Cloud Transcription",
+      "label": "Transcribe with OpenAI",
+      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
+    },
     "sound": {
       "title": "Som",
       "microphone": {
