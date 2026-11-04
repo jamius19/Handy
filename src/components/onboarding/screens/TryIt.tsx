@@ -20,7 +20,6 @@ import { useOnboardingStore } from "../onboardingStore";
 import { useTryEngine } from "../useTryEngine";
 import { MicrophoneDropdown } from "../../settings/MicrophoneSelector";
 import { useSettings } from "@/hooks/useSettings";
-import type { CatalogModel } from "@/lib/models/catalog";
 import "./tryit.css";
 
 type Mood = "point" | "listen" | "cheer" | "oops" | "ready" | "windup";
@@ -153,8 +152,8 @@ interface TryItProps {
   os: OSType;
   /** Open directly on All set. */
   finished: boolean;
-  model: CatalogModel | undefined;
-  /** The model is on disk. */
+  modelName: string;
+  /** The model is on disk (or a cloud model). */
   ready: boolean;
   /** Download status, shown in All set's panel while in progress. */
   download: React.ReactNode;
@@ -173,7 +172,7 @@ export const TryIt: React.FC<TryItProps> = ({
   progress,
   os,
   finished,
-  model,
+  modelName,
   ready,
   download,
   onChangeModel,
@@ -194,7 +193,7 @@ export const TryIt: React.FC<TryItProps> = ({
   useEffect(() => {
     if (silent) refreshAudioDevices();
   }, [silent, refreshAudioDevices]);
-  const name = model?.name ?? "";
+  const name = modelName;
 
   const seconds = (s: number) =>
     t("onboarding.try.seconds", {

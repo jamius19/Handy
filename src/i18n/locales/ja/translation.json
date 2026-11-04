@@ -148,7 +148,13 @@
       "downloadInstead": "代わりに {{size}} をダウンロード",
       "pauses": "{{name}} は {{percent}}% で一時停止中",
       "resumeLater": "もう一度選ぶと、続きからダウンロードします",
-      "hint": "セットアップを進めている間にダウンロードします"
+      "hint": "セットアップを進めている間にダウンロードします",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "ショートカット1つで、どのアプリでも話して入力",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "カスタム",
+    "cloud": "Cloud",
     "streaming": "ストリーミング",
     "active": "アクティブ",
     "noModelsAvailable": "利用可能なモデルがありません",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "{{model}} の設定"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "一般",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "言語"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "サウンド",

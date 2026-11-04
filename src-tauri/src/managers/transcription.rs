@@ -13,7 +13,7 @@ use crate::language_detection::{
     IdentifyError, LanguageDecision, LanguageDetector, LanguageSource, Plan,
 };
 use crate::managers::audio::{create_smoothed_detector, AudioRecordingManager};
-use crate::managers::model::ModelManager;
+use crate::managers::model::{is_cloud_model, ModelManager};
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
 use crate::overlay;
 use crate::settings::{
@@ -694,6 +694,10 @@ impl TranscriptionManager {
     /// loading, and returns whether it did. Only a dictation sets
     /// `raise_notice`: file jobs and Settings report their own failures.
     pub fn initiate_model_load(&self, raise_notice: bool) -> bool {
+        // A cloud model has nothing to load.
+        if is_cloud_model(&get_settings(&self.app_handle).selected_model) {
+            return false;
+        }
         let mut is_loading = self.is_loading.lock().unwrap();
         if *is_loading {
             return false;

@@ -148,7 +148,13 @@
       "downloadInstead": "बरु {{size}} डाउनलोड गर्नुहोस्",
       "pauses": "{{name}} {{percent}}% मा रोकिन्छ",
       "resumeLater": "फेरि छान्नुहोस्, जहाँ रोकिएको थियो त्यहीँबाट सुरु हुन्छ",
-      "hint": "तपाईंले सेटअप सक्दा डाउनलोड हुन्छ"
+      "hint": "तपाईंले सेटअप सक्दा डाउनलोड हुन्छ",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "एउटै सर्टकटले जुनसुकै एपमा बोल्नुहोस्",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "कस्टम",
+    "cloud": "Cloud",
     "streaming": "स्ट्रिमिङ",
     "active": "सक्रिय",
     "noModelsAvailable": "कुनै मोडेल उपलब्ध छैन",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "{{model}} सेटिङहरू"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "सामान्य",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "भाषाहरू"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "साउन्ड",

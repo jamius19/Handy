@@ -22,6 +22,8 @@ import { useOnboardingModels } from "./useOnboardingModels";
 import { useModelStore } from "@/stores/modelStore";
 import { moveScreens } from "./screenTransitions";
 import { downloadPick } from "./downloadPick";
+import { CLOUD_MODEL_ID } from "../shared/modelTable/tableModel";
+import { CLOUD_API_KEY_PROVIDER } from "../settings/CloudApiKey";
 import "./screenTransitions.css";
 
 interface OnboardingFlowProps {
@@ -48,18 +50,23 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
 }) => {
   const { i18n } = useTranslation();
   const store = useOnboardingStore();
-  const { settings, updateSetting } = useSettings();
+  const { settings, updateSetting, updatePostProcessApiKey } = useSettings();
   const permissions = usePermissions(preview);
   const osType = useOsType();
   const models = useOnboardingModels(store.languages);
   const currentModel = useModelStore((s) => s.currentModel);
   const selectModel = useModelStore((s) => s.selectModel);
+  const cloudName =
+    useModelStore((s) => s.models.find((m) => m.id === CLOUD_MODEL_ID))?.name ??
+    "";
 
   // Once models load: start from an on-disk model if there is one, or flag a
   // download interrupted by a quit. Reads the store since reset() runs first.
   useEffect(() => {
     if (preview || !models.offered.length) return;
-    const { downloadId } = useOnboardingStore.getState();
+    const { downloadId, modelId } = useOnboardingStore.getState();
+    // The cloud model needs nothing on disk.
+    if (modelId === CLOUD_MODEL_ID) return;
     if (downloadId) {
       const model = models.offered.find((m) => m.id === downloadId);
       if (model && models.downloadState(model).state === "none")
@@ -159,9 +166,31 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     if (!preview) clearOnboardingProgress();
   };
 
-  const chooseModel = (id: string) => {
-    startModel(id);
+  const chooseModel = (id: string, apiKey?: string) => {
+    if (id === CLOUD_MODEL_ID) pickCloud(apiKey ?? "");
+    else startModel(id);
     onward();
+  };
+
+  /** The cloud model: nothing downloads, and a local download stops. */
+  const pickCloud = (apiKey: string) => {
+    if (!preview) {
+      const previous = models.offered.find((m) => m.id === store.downloadId);
+      const previousInfo = previous && models.infoFor(previous);
+      if (
+        previousInfo &&
+        models.downloadState(previous).state === "downloading"
+      )
+        useModelStore.getState().cancelDownload(previousInfo.id);
+      void updatePostProcessApiKey(CLOUD_API_KEY_PROVIDER, apiKey).then(() =>
+        selectModel(CLOUD_MODEL_ID),
+      );
+    }
+    store.set({
+      modelId: CLOUD_MODEL_ID,
+      downloadId: null,
+      downloadFailed: false,
+    });
   };
 
   const startModel = (id: string) => {
@@ -171,9 +200,12 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       downloadId: id,
     });
   };
-  const downloadNow = preview
-    ? ({ state: "ready" } as const)
-    : models.downloadState(downloaded);
+  // Picked and committed: no local model is downloading in its place.
+  const usingCloud = store.modelId === CLOUD_MODEL_ID && !store.downloadId;
+  const downloadNow =
+    preview || usingCloud
+      ? ({ state: "ready" } as const)
+      : models.downloadState(downloaded);
   const modelReady = downloadNow.state === "ready";
 
   const saveLanguages = () => {
@@ -237,8 +269,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           os={osType}
           finished={step === "done"}
           // Falls back to the selected model in a preview.
-          model={
-            downloaded ?? models.catalogFor(settings?.selected_model ?? "")
+          modelName={
+            usingCloud
+              ? cloudName
+              : ((
+                  downloaded ??
+                  models.catalogFor(settings?.selected_model ?? "")
+                )?.name ?? "")
           }
           ready={modelReady}
           download={<DownloadStatus models={models} model={downloaded} />}

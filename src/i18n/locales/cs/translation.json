@@ -148,7 +148,13 @@
       "downloadInstead": "Stáhnout raději {{size}}",
       "pauses": "{{name}} se pozastaví na {{percent}} %",
       "resumeLater": "Vyberte jej znovu a stahování naváže tam, kde skončilo",
-      "hint": "Stahuje se, zatímco dokončujete nastavení"
+      "hint": "Stahuje se, zatímco dokončujete nastavení",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "Mluvte v jakékoli aplikaci jedinou zkratkou",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "Vlastní",
+    "cloud": "Cloud",
     "streaming": "Streaming",
     "active": "Aktivní",
     "noModelsAvailable": "Nejsou dostupné žádné modely",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "Nastavení {{model}}"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "Obecné",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "Jazyky"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "Zvuk",

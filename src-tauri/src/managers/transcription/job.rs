@@ -13,6 +13,9 @@ use super::{
 use crate::audio_toolkit::chunking::Chunker;
 use crate::engine_supervisor::EngineError;
 use crate::managers::audio::create_detector;
+use crate::managers::model::is_cloud_model;
+use crate::openai_transcription;
+use crate::settings::get_settings;
 
 /// Tries per chunk when a dictation's cancel interrupts it.
 const MAX_CHUNK_ATTEMPTS: usize = 3;
@@ -47,6 +50,10 @@ impl TranscriptionManager {
                 text: String::new(),
                 language: None,
             }));
+        }
+
+        if is_cloud_model(&get_settings(&self.app_handle).selected_model) {
+            return self.transcribe_in_cloud_chunks(audio, control, started);
         }
 
         self.touch_activity();
@@ -133,6 +140,64 @@ impl TranscriptionManager {
         Ok(Some(Transcription {
             text: paragraphs.join("\n\n"),
             language: Some(language),
+        }))
+    }
+
+    /// The same chunks as a local job, each sent to the cloud model: one
+    /// paragraph per chunk, and none bigger than the API's upload limit.
+    fn transcribe_in_cloud_chunks(
+        &self,
+        audio: Vec<f32>,
+        control: &dyn ChunkControl,
+        started: Instant,
+    ) -> Result<Option<Transcription>> {
+        let total = audio.len();
+        let backend = get_settings(&self.app_handle).vad_backend;
+        let app_handle = self.app_handle.clone();
+        let mut chunker = Chunker::new(Box::new(move || create_detector(backend, &app_handle)));
+        let mut pieces = audio.chunks(FEED_SAMPLES);
+
+        let mut paragraphs: Vec<String> = Vec::new();
+        let mut language = None;
+        let mut done = 0;
+        control.progress(done, total);
+        loop {
+            if !control.proceed() {
+                return Ok(None);
+            }
+            let (chunks, last) = match pieces.next() {
+                Some(piece) => (chunker.push(piece), false),
+                None => (chunker.finish(), true),
+            };
+            for chunk in chunks {
+                if !control.proceed() {
+                    return Ok(None);
+                }
+                let transcription = tauri::async_runtime::block_on(
+                    openai_transcription::transcribe(&self.app_handle, &chunk),
+                )?;
+                // The first chunk's language stands for the whole file.
+                language = language.or(transcription.language);
+                if !transcription.text.trim().is_empty() {
+                    paragraphs.push(transcription.text);
+                }
+                done += chunk.len();
+                control.progress(done, total);
+            }
+            if last {
+                break;
+            }
+        }
+
+        info!(
+            "Cloud transcription of {:.1}s of audio in {} paragraphs took {:.1}s",
+            total as f64 / 16_000.0,
+            paragraphs.len(),
+            started.elapsed().as_secs_f64()
+        );
+        Ok(Some(Transcription {
+            text: paragraphs.join("\n\n"),
+            language,
         }))
     }
 }

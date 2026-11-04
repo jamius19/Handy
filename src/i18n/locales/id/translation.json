@@ -148,7 +148,13 @@
       "downloadInstead": "Unduh {{size}} saja",
       "pauses": "{{name}} berhenti sejenak di {{percent}}%",
       "resumeLater": "Pilih lagi untuk melanjutkan dari titik terhenti",
-      "hint": "Diunduh selagi Anda menyelesaikan penyiapan"
+      "hint": "Diunduh selagi Anda menyelesaikan penyiapan",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "Bicara di aplikasi apa pun, dengan satu pintasan",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "Kustom",
+    "cloud": "Cloud",
     "streaming": "Streaming",
     "active": "Aktif",
     "noModelsAvailable": "Tidak ada model yang tersedia",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "Pengaturan {{model}}"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "Umum",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "Bahasa"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "Suara",

@@ -148,7 +148,13 @@
       "downloadInstead": "Натомість завантажити {{size}}",
       "pauses": "{{name}} призупиняється на {{percent}}%",
       "resumeLater": "Оберіть її знову, щоб продовжити з місця зупинки",
-      "hint": "Завантажується, поки ви завершуєте налаштування"
+      "hint": "Завантажується, поки ви завершуєте налаштування",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "Говоріть у будь-якій програмі за допомогою однієї комбінації клавіш",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "Користувацька",
+    "cloud": "Cloud",
     "streaming": "Потокове",
     "active": "Активна",
     "noModelsAvailable": "Немає доступних моделей",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "Налаштування {{model}}"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "Загальні",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "Мови"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "Звук",

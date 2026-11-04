@@ -148,7 +148,13 @@
       "downloadInstead": "Download {{size}} i stedet",
       "pauses": "{{name}} holder pause ved {{percent}} %",
       "resumeLater": "Vælg den igen for at fortsætte, hvor den slap",
-      "hint": "Downloader, mens du gør opsætningen færdig"
+      "hint": "Downloader, mens du gør opsætningen færdig",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "Tal i enhver app med én genvej",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "Brugerdefineret",
+    "cloud": "Cloud",
     "streaming": "Streaming",
     "active": "Aktiv",
     "noModelsAvailable": "Ingen modeller tilgængelige",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "{{model}}-indstillinger"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "Generelt",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "Sprog"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "Lyd",

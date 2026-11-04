@@ -148,7 +148,13 @@
       "downloadInstead": "Tải xuống {{size}} thay thế",
       "pauses": "{{name}} tạm dừng ở {{percent}}%",
       "resumeLater": "Chọn lại để tiếp tục từ chỗ đã dừng",
-      "hint": "Tải xuống trong lúc bạn hoàn tất thiết lập"
+      "hint": "Tải xuống trong lúc bạn hoàn tất thiết lập",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "Nói trong mọi ứng dụng, chỉ với một phím tắt",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "Tùy chỉnh",
+    "cloud": "Cloud",
     "streaming": "Truyền trực tiếp",
     "active": "Đang hoạt động",
     "noModelsAvailable": "Không có mô hình nào",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "Cài đặt {{model}}"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "Chung",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "Ngôn ngữ"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "Âm thanh",

@@ -41,7 +41,8 @@ export const ModelRow: React.FC<{ entry: Entry }> = ({ entry }) => {
   const onDisk = place === "active" || place === "ready" || place === "loading";
   const on = place === "active";
   // While History transcribes, the model in use can't change or go away.
-  const deletable = onDisk && !(locked && on);
+  // A cloud model has no file to delete.
+  const deletable = onDisk && entry.kind !== "cloud" && !(locked && on);
   const inert = locked && place === "ready";
   const size = formatModelSize(entry.sizeMb);
   const download =

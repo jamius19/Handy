@@ -40,6 +40,11 @@ import type { CatalogModel, ModelRow, PickRole } from "@/lib/models/catalog";
 import type { useOnboardingModels } from "../useOnboardingModels";
 import { moveModels } from "./modelTransitions";
 import "./modelTransitions.css";
+import { Input } from "../../ui/Input";
+import { useSettings } from "@/hooks/useSettings";
+import { useModelStore } from "@/stores/modelStore";
+import { CLOUD_MODEL_ID } from "../../shared/modelTable/tableModel";
+import { CLOUD_API_KEY_PROVIDER } from "../../settings/CloudApiKey";
 
 type Models = ReturnType<typeof useOnboardingModels>;
 
@@ -70,8 +75,11 @@ interface ModelProps {
   progress?: { index: number; count: number };
   models: Models;
   onBack?: () => void;
-  /** The picked model (catalog id), once Download or Continue is pressed. */
-  onChoose: (modelId: string) => void;
+  /**
+   * The picked model (catalog id, or the cloud model's id with its API key),
+   * once Download or Continue is pressed.
+   */
+  onChoose: (modelId: string, apiKey?: string) => void;
 }
 
 /** Screen 3: pick one of three suggested models, or Show all for the table. */
@@ -85,6 +93,7 @@ export const Model: React.FC<ModelProps> = ({
   const words = useDownloadWords();
   const speedWords = useSpeedWords();
   const { modelId, extraModelId, downloadId, set } = useOnboardingStore();
+  const { settings } = useSettings();
   const [showAll, setShowAll] = useState(false);
   const { filters, setFilters, matches } = useModelFilters();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -97,12 +106,22 @@ export const Model: React.FC<ModelProps> = ({
     m.capabilities[CAPABILITIES[c].flag];
   const previews = (m: CatalogModel) => has(m, "preview");
   const pick = picks.find((p) => p.role === "pick") ?? picks[0];
-  const selectedId = modelId ?? downloadId ?? pick?.model.id ?? null;
+  // The cloud model comes first: it's selected until a local one is picked.
+  const selectedId = modelId ?? CLOUD_MODEL_ID;
+  const cloudSelected = selectedId === CLOUD_MODEL_ID;
+  const cloudName =
+    useModelStore((s) => s.models.find((m) => m.id === CLOUD_MODEL_ID))?.name ??
+    "";
+  const savedKey = settings?.post_process_api_keys?.[CLOUD_API_KEY_PROVIDER];
+  const [cloudKey, setCloudKey] = useState(savedKey ?? "");
+  useEffect(() => {
+    if (savedKey && !cloudKey) setCloudKey(savedKey);
+  }, [savedKey]);
   const isPick = (id: string | null) =>
     !!id && picks.some((p) => p.model.id === id);
   // A model picked from the full list stays as a fourth card unless a pick.
   const extraId =
-    selectedId && !isPick(selectedId)
+    selectedId && !cloudSelected && !isPick(selectedId)
       ? selectedId
       : isPick(extraModelId)
         ? null
@@ -470,6 +489,80 @@ export const Model: React.FC<ModelProps> = ({
     );
   };
 
+  /** The cloud model's card: the full one asks for its API key. */
+  const cloudCard = () => {
+    const id = CLOUD_MODEL_ID;
+    const role = (
+      <b
+        {...vt(id, "r")}
+        className={`${roleBase} ${cloudSelected ? "text-[16px]" : "text-label"} text-text`}
+      >
+        {t("onboarding.model.cloud.role")}
+      </b>
+    );
+    if (!cloudSelected)
+      return (
+        <button
+          key={id}
+          type="button"
+          role="radio"
+          aria-checked="false"
+          {...vt(id)}
+          data-vt-row=""
+          onClick={() => choose(id, true)}
+          className="relative flex w-full min-w-0 cursor-pointer items-center gap-[10px] whitespace-nowrap rounded-card border-[1.5px] border-line bg-background px-5 py-[8px] text-start text-small text-text hover:border-ink-3 hover:bg-wash [view-transition-class:mf-row_mf-box]"
+        >
+          {mark(id, false)}
+          {role}
+          <span
+            {...vt(id, "d")}
+            className="min-w-0 flex-[1_1_0] overflow-hidden text-ellipsis text-ink-3"
+          >
+            {cloudName}
+          </span>
+        </button>
+      );
+    return (
+      <div
+        key={id}
+        {...vt(id)}
+        data-vt-row=""
+        role="radio"
+        aria-checked="true"
+        tabIndex={0}
+        className="flex w-full min-w-0 flex-col items-stretch rounded-panel border-[1.5px] border-plum-pick bg-background px-5 py-4 text-start text-small text-text [view-transition-class:mf-row_mf-box]"
+      >
+        <span className="flex min-w-0 items-center gap-[10px] whitespace-nowrap">
+          {mark(id, true)}
+          {role}
+        </span>
+        <span
+          {...vt(id, "n")}
+          className="mt-[4px] font-display text-name font-[650] leading-[1.2] tracking-[-0.01em] text-ink-2"
+        >
+          {cloudName}
+        </span>
+        <span {...vt(id, "d")} className="mt-[2px] text-ink-2">
+          {t("onboarding.model.cloud.line")}
+        </span>
+        <label className="mt-[10px] grid grid-cols-[84px_1fr] items-center gap-x-[12px]">
+          <span className="text-ink-2">
+            {t("onboarding.model.cloud.keyLabel")}
+          </span>
+          <Input
+            type="password"
+            value={cloudKey}
+            onChange={(e) => setCloudKey(e.target.value)}
+            placeholder={t("settings.cloudModel.apiKey.placeholder")}
+            variant="compact"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+      </div>
+    );
+  };
+
   /* ---------------- the footer ---------------- */
 
   // Nothing to download for a model on disk, or the one already downloading.
@@ -483,7 +576,16 @@ export const Model: React.FC<ModelProps> = ({
     loading && loading.id !== selectedId && loadingState.state === "downloading"
       ? { name: loading.name, percent: words.percent(loadingState) }
       : null;
-  const primary = (
+  const primary = cloudSelected ? (
+    <Button
+      variant="primary"
+      size="lg"
+      disabled={!cloudKey.trim()}
+      onClick={() => onChoose(CLOUD_MODEL_ID, cloudKey.trim())}
+    >
+      {t("onboarding.shell.continue")}
+    </Button>
+  ) : (
     <Button variant="primary" size="lg" onClick={() => onChoose(selectedId)}>
       {continuing
         ? t("onboarding.shell.continue")
@@ -495,7 +597,13 @@ export const Model: React.FC<ModelProps> = ({
           )}
     </Button>
   );
-  const hint = switching ? (
+  const hint = cloudSelected ? (
+    cloudKey.trim() ? (
+      ""
+    ) : (
+      t("onboarding.model.cloud.keyHint")
+    )
+  ) : switching ? (
     <div className="text-start leading-[1.35]">
       <div className="truncate font-medium text-text">
         {t("onboarding.model.pauses", switching)}
@@ -529,6 +637,8 @@ export const Model: React.FC<ModelProps> = ({
           ? fullCard(extra, "extra")
           : oneLine(extra, "extra"),
       );
+    // Only a model the app offers can be picked.
+    if (cloudName) items.unshift(cloudCard());
     return (
       <OnboardingShell
         progress={progress}

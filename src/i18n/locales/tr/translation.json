@@ -148,7 +148,13 @@
       "downloadInstead": "Bunun yerine {{size}} indir",
       "pauses": "{{name}} %{{percent}} noktasında duraklıyor",
       "resumeLater": "Tekrar seçtiğinizde kaldığı yerden devam eder",
-      "hint": "Kurulumu bitirirken iner"
+      "hint": "Kurulumu bitirirken iner",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "Tek kısayolla her uygulamada konuşun",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "Özel",
+    "cloud": "Cloud",
     "streaming": "Akış",
     "active": "Aktif",
     "noModelsAvailable": "Kullanılabilir model yok",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "{{model}} Ayarları"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "Genel",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "Diller"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "Ses",

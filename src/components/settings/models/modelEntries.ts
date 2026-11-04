@@ -35,7 +35,14 @@ export interface Lists {
   untested: Entry[];
 }
 
-const KIND_ORDER = { curated: 0, catalog: 0, custom: 1, legacy: 2 } as const;
+// Cloud first: it is the preferred way to transcribe.
+const KIND_ORDER = {
+  cloud: -1,
+  curated: 0,
+  catalog: 0,
+  custom: 1,
+  legacy: 2,
+} as const;
 
 /** Every model on the page, graded for `spoken_languages`, in sections. */
 export const useModelEntries = () => {

@@ -3,8 +3,8 @@
  * Since: 04/11/2026
  */
 
-//! Dictation through OpenAI's transcription API (`gpt-transcribe`), used in
-//! place of the local model when `openai_transcription_enabled` is on.
+//! Transcription with the OpenAI `gpt-transcribe` cloud model, used for
+//! dictation and background jobs whenever it is the selected model.
 
 use crate::audio_toolkit::OutputLanguageEvidence;
 use crate::language_detection::{LanguageDecision, LanguageSource};
@@ -61,17 +61,16 @@ pub async fn transcribe(app: &AppHandle, samples: &[f32]) -> Result<Transcriptio
         .unwrap_or_default();
     if api_key.is_empty() {
         return Err(anyhow!(
-            "No OpenAI API key is set. Add one for the OpenAI provider in Post Processing settings."
+            "No OpenAI API key is set. Add one in the model's settings."
         ));
     }
 
-    // Hints for the languages the person speaks, e.g. ["en", "bn"].
-    let languages: Vec<String> = if !settings.spoken_languages.is_empty() {
-        settings.spoken_languages.clone()
-    } else if settings.selected_language != "auto" {
+    // The language picked for the model wins; with Auto, hints for every
+    // language the person speaks, e.g. ["en", "bn"].
+    let languages: Vec<String> = if settings.selected_language != "auto" {
         vec![settings.selected_language.clone()]
     } else {
-        Vec::new()
+        settings.spoken_languages.clone()
     };
     // OpenAI rejects keywords containing '<', '>' or line breaks.
     let keywords: Vec<String> = settings

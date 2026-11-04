@@ -148,7 +148,13 @@
       "downloadInstead": "Baixa {{size}} en lloc seu",
       "pauses": "{{name}} es posa en pausa al {{percent}} %",
       "resumeLater": "Torneu-lo a triar per continuar on s'havia quedat",
-      "hint": "Es baixa mentre acabeu la configuració"
+      "hint": "Es baixa mentre acabeu la configuració",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "Parleu a qualsevol aplicació, amb una sola drecera",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "Personalitzat",
+    "cloud": "Cloud",
     "streaming": "En temps real",
     "active": "Actiu",
     "noModelsAvailable": "No hi ha models disponibles",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "Configuració de {{model}}"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "General",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "Llengües"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "So",

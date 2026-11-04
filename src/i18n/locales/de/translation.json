@@ -148,7 +148,13 @@
       "downloadInstead": "Stattdessen {{size}} herunterladen",
       "pauses": "{{name}} pausiert bei {{percent}} %",
       "resumeLater": "Wähle es erneut, um dort weiterzumachen, wo es aufgehört hat",
-      "hint": "Wird heruntergeladen, während du die Einrichtung abschließt"
+      "hint": "Wird heruntergeladen, während du die Einrichtung abschließt",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "Sprich in jeder App, mit einem Tastenkürzel",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "Benutzerdefiniert",
+    "cloud": "Cloud",
     "streaming": "Streaming",
     "active": "Aktiv",
     "noModelsAvailable": "Keine Modelle verfügbar",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "{{model}}-Einstellungen"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "Allgemein",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "Sprachen"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "Ton",

@@ -5,6 +5,7 @@ import {
   getTranslatedModelName,
   getTranslatedModelDescription,
 } from "../../lib/utils/modelTranslation";
+import { isCloudModel } from "../shared/modelTable/tableModel";
 
 interface ModelDropdownProps {
   models: ModelInfo[];
@@ -21,7 +22,10 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
   onModelSelect,
 }) => {
   const { t } = useTranslation();
-  const downloadedModels = models.filter((m) => m.is_downloaded);
+  // Cloud first: it is the preferred way to transcribe.
+  const downloadedModels = models
+    .filter((m) => m.is_downloaded)
+    .sort((a, b) => Number(isCloudModel(b)) - Number(isCloudModel(a)));
 
   const handleModelClick = (modelId: string) => {
     if (locked) return;
@@ -67,6 +71,11 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
                     {model.is_custom && (
                       <span className="ms-1.5 text-[10px] font-medium text-ink-3 uppercase">
                         {t("modelSelector.custom")}
+                      </span>
+                    )}
+                    {isCloudModel(model) && (
+                      <span className="ms-1.5 text-[10px] font-medium text-ink-3 uppercase">
+                        {t("modelSelector.cloud")}
                       </span>
                     )}
                     {model.supports_streaming && (

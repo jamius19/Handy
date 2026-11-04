@@ -1,4 +1,6 @@
-use crate::managers::model::{ModelInfo, ModelManager, RetiredModel, LANGUAGE_DETECTOR_ID};
+use crate::managers::model::{
+    is_cloud_model, ModelInfo, ModelManager, RetiredModel, LANGUAGE_DETECTOR_ID,
+};
 use crate::managers::transcription::{ModelStateEvent, TranscriptionManager};
 use crate::notices::{self, NoticeSource};
 use crate::settings::{get_settings, write_settings, ModelUnloadTimeout};
@@ -180,9 +182,16 @@ pub fn switch_active_model(app: &AppHandle, model_id: &str) -> Result<(), String
 
     write_settings(app, settings);
 
+    // A cloud model has nothing to load, and the local model it replaces
+    // won't be used, so free it.
+    let cloud = is_cloud_model(model_id);
+    if cloud && transcription_manager.is_model_loaded() {
+        transcription_manager.request_unload();
+    }
+
     // Skip eager loading if unload is set to "Immediately" — the model
     // will be loaded on-demand during the next transcription.
-    if unload_timeout == ModelUnloadTimeout::Immediately {
+    if cloud || unload_timeout == ModelUnloadTimeout::Immediately {
         // Notify frontend — load_model won't be called so no events
         // would otherwise be emitted.
         let _ = app.emit(
@@ -237,8 +246,14 @@ pub async fn get_current_model(app_handle: AppHandle) -> Result<String, String> 
 #[tauri::command]
 #[specta::specta]
 pub async fn get_transcription_model_status(
+    app_handle: AppHandle,
     transcription_manager: State<'_, Arc<TranscriptionManager>>,
 ) -> Result<Option<String>, String> {
+    // A cloud model is always ready: there's nothing to load.
+    let selected = get_settings(&app_handle).selected_model;
+    if is_cloud_model(&selected) {
+        return Ok(Some(selected));
+    }
     Ok(transcription_manager.get_current_model())
 }
 

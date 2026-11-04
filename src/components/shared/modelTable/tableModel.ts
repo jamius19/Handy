@@ -12,6 +12,13 @@ import type { TableModel } from "./context";
 export const isLegacyModel = (model: ModelInfo): boolean =>
   typeof model.source === "object" && "Url" in model.source;
 
+/** Runs on a cloud API: nothing to download or delete. */
+export const isCloudModel = (model: ModelInfo): boolean =>
+  model.source === "Cloud";
+
+/** The OpenAI cloud model's id (`OPENAI_CLOUD_MODEL_ID` in Rust). */
+export const CLOUD_MODEL_ID = "openai-gpt-transcribe";
+
 // Extract a GGUF quantization label from a filename, if present (e.g. "Q8_0").
 const quantOf = (filename: string): string | null => {
   const match = filename.match(
@@ -40,13 +47,15 @@ export const toTableModel = (info: ModelInfo, t: TFunction): TableModel => {
     sizeMb: Number(info.size_mb),
     // The file's own, so a different quant found on disk says so.
     quant: quantOf(info.filename) ?? model?.quant ?? null,
-    kind: info.is_custom
-      ? "custom"
-      : isLegacyModel(info)
-        ? "legacy"
-        : model?.curated
-          ? "curated"
-          : "catalog",
+    kind: isCloudModel(info)
+      ? "cloud"
+      : info.is_custom
+        ? "custom"
+        : isLegacyModel(info)
+          ? "legacy"
+          : model?.curated
+            ? "curated"
+            : "catalog",
     model,
   };
 };

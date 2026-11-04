@@ -148,7 +148,13 @@
       "downloadInstead": "改为下载（{{size}}）",
       "pauses": "{{name}}将在 {{percent}}% 时暂停",
       "resumeLater": "再次选择它，即可从中断处继续",
-      "hint": "在您完成设置的同时下载"
+      "hint": "在您完成设置的同时下载",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "一个快捷键，在任何应用中开口就写",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "自定义",
+    "cloud": "Cloud",
     "streaming": "流式",
     "active": "活跃",
     "noModelsAvailable": "没有可用的模型",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "{{model}} 设置"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "通用",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "语言"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "声音",

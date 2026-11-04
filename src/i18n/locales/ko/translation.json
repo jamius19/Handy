@@ -148,7 +148,13 @@
       "downloadInstead": "대신 {{size}} 다운로드",
       "pauses": "{{name}}은(는) {{percent}}%에서 일시 중지됩니다",
       "resumeLater": "다시 선택하면 중단된 곳에서 이어받습니다",
-      "hint": "설정을 마치는 동안 다운로드됩니다"
+      "hint": "설정을 마치는 동안 다운로드됩니다",
+      "cloud": {
+        "role": "Cloud",
+        "line": "Transcribes with OpenAI, so nothing downloads. Your recordings are sent to OpenAI.",
+        "keyLabel": "API key",
+        "keyHint": "Add your OpenAI API key to continue."
+      }
     },
     "demo": {
       "title": "단축키 하나로 어떤 앱에서든 말하세요",
@@ -307,6 +313,7 @@
   },
   "modelSelector": {
     "custom": "사용자 정의",
+    "cloud": "Cloud",
     "streaming": "스트리밍",
     "active": "활성",
     "noModelsAvailable": "사용 가능한 모델이 없습니다",
@@ -326,6 +333,13 @@
   "settings": {
     "modelSettings": {
       "title": "{{model}} 설정"
+    },
+    "cloudModel": {
+      "apiKey": {
+        "title": "OpenAI API Key",
+        "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
+        "placeholder": "sk-..."
+      }
     },
     "general": {
       "title": "일반",
@@ -435,11 +449,6 @@
     },
     "languages": {
       "title": "언어"
-    },
-    "openaiTranscription": {
-      "title": "Cloud Transcription",
-      "label": "Transcribe with OpenAI",
-      "description": "Send recordings to OpenAI's gpt-transcribe model instead of the local model. Uses the OpenAI API key from Post Processing settings."
     },
     "sound": {
       "title": "사운드",

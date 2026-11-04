@@ -39,6 +39,17 @@ pub enum ModelSource {
     /// Already present on disk — a user-provided custom model, or one discovered
     /// in a shared cache. Nothing to download.
     Local,
+    /// Runs on a cloud API, not on this computer: nothing to download, load
+    /// or delete.
+    Cloud,
+}
+
+/// The OpenAI `gpt-transcribe` cloud model (see `openai_transcription.rs`).
+pub const OPENAI_CLOUD_MODEL_ID: &str = "openai-gpt-transcribe";
+
+/// Whether `model_id` names a cloud model rather than a local one.
+pub fn is_cloud_model(model_id: &str) -> bool {
+    model_id == OPENAI_CLOUD_MODEL_ID
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -905,6 +916,32 @@ impl ModelManager {
         .map(String::from)
         .collect();
 
+        // OpenAI publishes no language list for gpt-transcribe; Whisper's is
+        // the closest known set.
+        available_models.insert(
+            OPENAI_CLOUD_MODEL_ID.to_string(),
+            ModelInfo {
+                id: OPENAI_CLOUD_MODEL_ID.to_string(),
+                name: "OpenAI GPT-Transcribe".to_string(),
+                description: "Transcribes in the cloud with your OpenAI API key.".to_string(),
+                filename: String::new(),
+                source: ModelSource::Cloud,
+                size_mb: 0,
+                is_downloaded: true,
+                is_downloading: false,
+                partial_size: 0,
+                accuracy_score: 0.95,
+                speed_score: 0.8,
+                supports_translation: false,
+                is_recommended: false,
+                supported_languages: whisper_languages.clone(),
+                supports_language_selection: true,
+                is_custom: false,
+                supports_streaming: false,
+                supports_language_detection: true,
+            },
+        );
+
         available_models.insert(
             "small".to_string(),
             ModelInfo {
@@ -1320,6 +1357,10 @@ impl ModelManager {
         let mut vanished_models: Vec<String> = Vec::new();
 
         for model in models.values_mut() {
+            // Nothing on disk to check: a cloud model is always available.
+            if matches!(model.source, ModelSource::Cloud) {
+                continue;
+            }
             if let ModelSource::HuggingFace { repo_id, revision } = &model.source {
                 // A models-dir copy counts too: mirror-fallback downloads land
                 // there, and it makes manual drop-ins of catalog files work.
@@ -1482,12 +1523,13 @@ impl ModelManager {
         }
 
         // If no model is selected, pick the first downloaded one using the same
-        // ranked order the UI receives.
+        // ranked order the UI receives. Never a cloud model: sending audio off
+        // this computer has to be the person's own choice.
         if settings.selected_model.is_empty() {
             if let Some(available_model) = self
                 .get_available_models()
                 .into_iter()
-                .find(|model| model.is_downloaded)
+                .find(|model| model.is_downloaded && !is_cloud_model(&model.id))
             {
                 info!(
                     "Auto-selecting model: {} ({})",
@@ -2277,7 +2319,7 @@ impl ModelManager {
                     .download_hf_model(&model_info, repo_id.clone(), revision.clone())
                     .await;
             }
-            ModelSource::Local => {
+            ModelSource::Local | ModelSource::Cloud => {
                 return Err(anyhow::anyhow!("No download source for model"));
             }
         };
@@ -2380,6 +2422,10 @@ impl ModelManager {
             model_info.ok_or_else(|| anyhow::anyhow!("Model not found: {}", model_id))?;
 
         debug!("ModelManager: Found model info: {:?}", model_info);
+
+        if matches!(model_info.source, ModelSource::Cloud) {
+            return Err(anyhow::anyhow!("A cloud model has nothing to delete"));
+        }
 
         if let ModelSource::HuggingFace { repo_id, revision } = &model_info.source {
             // Only this entry's own file, every cached copy of it. Other
@@ -2511,6 +2557,10 @@ impl ModelManager {
         let model_info = self
             .get_model_info(model_id)
             .ok_or_else(|| anyhow::anyhow!("Model not found: {}", model_id))?;
+
+        if matches!(model_info.source, ModelSource::Cloud) {
+            return Err(anyhow::anyhow!("A cloud model has no file: {}", model_id));
+        }
 
         if !model_info.is_downloaded {
             return Err(anyhow::anyhow!("Model not available: {}", model_id));
