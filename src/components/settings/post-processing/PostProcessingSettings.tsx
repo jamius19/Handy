@@ -3,6 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { RefreshCcw } from "lucide-react";
 import {
   commands,
+  type OpenAiServiceTier,
   type PostProcessApiFormat,
   type ReasoningLevel,
 } from "@/bindings";
@@ -27,10 +28,12 @@ import { ShortcutInput } from "../ShortcutInput";
 import { useSettings } from "../../../hooks/useSettings";
 
 const REASONING_LEVELS: ReasoningLevel[] = ["off", "low", "medium", "high"];
+const OPENAI_SERVICE_TIERS: OpenAiServiceTier[] = ["default", "fast"];
 
 const PostProcessingSettingsApiComponent: React.FC = () => {
   const { t } = useTranslation();
   const state = usePostProcessProviderState();
+  const { getSetting, updateSetting, isUpdating } = useSettings();
 
   return (
     <>
@@ -202,6 +205,33 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
               state.handleReasoningChange(value as ReasoningLevel)
             }
             disabled={state.isReasoningUpdating}
+          />
+        </SettingContainer>
+      )}
+
+      {state.selectedProviderId === "openai" && (
+        <SettingContainer
+          title={t("settings.postProcessing.api.serviceTier.title")}
+          description={t("settings.postProcessing.api.serviceTier.description")}
+          descriptionMode="tooltip"
+          layout="horizontal"
+          grouped={true}
+        >
+          <Dropdown
+            options={OPENAI_SERVICE_TIERS.map((tier) => ({
+              value: tier,
+              label: t(`settings.postProcessing.api.serviceTier.tiers.${tier}`),
+            }))}
+            selectedValue={
+              getSetting("post_process_openai_service_tier") ?? "default"
+            }
+            onSelect={(value) =>
+              updateSetting(
+                "post_process_openai_service_tier",
+                value as OpenAiServiceTier,
+              )
+            }
+            disabled={isUpdating("post_process_openai_service_tier")}
           />
         </SettingContainer>
       )}

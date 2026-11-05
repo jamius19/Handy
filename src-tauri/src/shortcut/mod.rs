@@ -23,9 +23,9 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::settings::APPLE_INTELLIGENCE_DEFAULT_MODEL_ID;
 use crate::settings::{
     self, get_settings, AutoSubmitKey, ChineseScript, ClipboardHandling, KeyboardImplementation,
-    LLMPrompt, LanguageDetectionMode, OverlayPosition, OverlayStyle, PasteMethod, ReasoningLevel,
-    ShortcutActivation, ShortcutBinding, SoundTheme, Theme, TypingTool, VadBackend,
-    APPLE_INTELLIGENCE_PROVIDER_ID,
+    LLMPrompt, LanguageDetectionMode, OpenAiServiceTier, OverlayPosition, OverlayStyle,
+    PasteMethod, ReasoningLevel, ShortcutActivation, ShortcutBinding, SoundTheme, Theme,
+    TypingTool, VadBackend, APPLE_INTELLIGENCE_PROVIDER_ID,
 };
 use crate::tray;
 
@@ -1244,6 +1244,18 @@ pub fn change_post_process_reasoning_setting(
     let mut settings = settings::get_settings(&app);
     validate_provider_exists(&settings, &provider_id)?;
     settings.post_process_reasoning.insert(provider_id, level);
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_post_process_openai_service_tier_setting(
+    app: AppHandle,
+    tier: OpenAiServiceTier,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.post_process_openai_service_tier = tier;
     settings::write_settings(&app, settings);
     Ok(())
 }

@@ -296,6 +296,14 @@ async changePostProcessReasoningSetting(providerId: string, level: ReasoningLeve
     else return { status: "error", error: e  as any };
 }
 },
+async changePostProcessOpenaiServiceTierSetting(tier: OpenAiServiceTier) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_post_process_openai_service_tier_setting", { tier }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async setPostProcessProvider(providerId: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("set_post_process_provider", { providerId }) };
@@ -1032,7 +1040,7 @@ async updateRecordingRetentionPeriod(period: string) : Promise<Result<null, stri
 },
 /**
  * Checks if the Mac is a laptop by detecting battery presence
- * 
+ *
  * This uses pmset to check for battery information.
  * Returns true if a battery is detected (laptop), false otherwise (desktop)
  */
@@ -1138,7 +1146,11 @@ spoken_languages?: string[]; overlay_position?: OverlayPosition; debug_mode?: bo
 /**
  * Reasoning level per provider id; a provider without one is Off.
  */
-post_process_reasoning?: Partial<{ [key in string]: ReasoningLevel }>; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; experimental_enabled?: boolean; lazy_stream_close?: boolean; 
+post_process_reasoning?: Partial<{ [key in string]: ReasoningLevel }>; 
+/**
+ * Service tier for the OpenAI provider; other providers ignore it.
+ */
+post_process_openai_service_tier?: OpenAiServiceTier; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; experimental_enabled?: boolean; lazy_stream_close?: boolean; 
 /**
  * Experimental, macOS only: move a Bluetooth headset (AirPods) to this
  * Mac while recording, so its microphone does not return silence while
@@ -1379,6 +1391,18 @@ notices: Notice[];
  * `None` when a notice was cleared.
  */
 raised: Notice | null }
+/**
+ * OpenAI processing tier for post-processing requests to OpenAI's own API.
+ */
+export type OpenAiServiceTier = 
+/**
+ * Sends no `service_tier`, so the OpenAI project's own tier applies.
+ */
+"default" | 
+/**
+ * Fast mode: lower latency at a per-token premium.
+ */
+"fast"
 export type OverlayPosition = "top" | "bottom"
 /**
  * Which recording overlay to display. `Minimal` and `Live` share one base

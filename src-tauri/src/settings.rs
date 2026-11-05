@@ -119,6 +119,17 @@ pub enum ReasoningLevel {
     High,
 }
 
+/// OpenAI processing tier for post-processing requests to OpenAI's own API.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq, Type)]
+#[serde(rename_all = "lowercase")]
+pub enum OpenAiServiceTier {
+    /// Sends no `service_tier`, so the OpenAI project's own tier applies.
+    #[default]
+    Default,
+    /// Fast mode: lower latency at a per-token premium.
+    Fast,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct PostProcessProvider {
     pub id: String,
@@ -506,6 +517,9 @@ pub struct AppSettings {
     /// Reasoning level per provider id; a provider without one is Off.
     #[serde(default)]
     pub post_process_reasoning: HashMap<String, ReasoningLevel>,
+    /// Service tier for the OpenAI provider; other providers ignore it.
+    #[serde(default)]
+    pub post_process_openai_service_tier: OpenAiServiceTier,
     #[serde(default = "default_post_process_prompts")]
     pub post_process_prompts: Vec<LLMPrompt>,
     #[serde(default)]
@@ -1056,6 +1070,7 @@ pub fn get_default_settings() -> AppSettings {
         post_process_api_keys: default_post_process_api_keys(),
         post_process_models: default_post_process_models(),
         post_process_reasoning: HashMap::new(),
+        post_process_openai_service_tier: OpenAiServiceTier::Default,
         post_process_prompts: default_post_process_prompts(),
         post_process_selected_prompt_id: None,
         mute_while_recording: false,

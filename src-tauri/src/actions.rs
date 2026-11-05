@@ -343,6 +343,7 @@ async fn post_process_transcription(
             Some(system_prompt),
             Some(json_schema),
             reasoning,
+            settings.post_process_openai_service_tier,
         )
         .await
         {
@@ -399,6 +400,7 @@ async fn post_process_transcription(
         &model,
         processed_prompt,
         reasoning,
+        settings.post_process_openai_service_tier,
     )
     .await
     {

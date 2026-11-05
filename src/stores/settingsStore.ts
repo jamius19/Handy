@@ -6,6 +6,7 @@ import type {
   AudioDevice,
   PostProcessApiFormat,
   ReasoningLevel,
+  OpenAiServiceTier,
   ChineseScript,
   TranscribeAcceleratorSetting,
   ShortcutActivation,
@@ -171,6 +172,10 @@ const settingUpdaters: {
     commands.changePostProcessEnabledSetting(value as boolean),
   post_process_selected_prompt_id: (value) =>
     commands.setPostProcessSelectedPrompt(value as string),
+  post_process_openai_service_tier: (value) =>
+    commands.changePostProcessOpenaiServiceTierSetting(
+      value as OpenAiServiceTier,
+    ),
   mute_while_recording: (value) =>
     commands.changeMuteWhileRecordingSetting(value as boolean),
   append_trailing_space: (value) =>

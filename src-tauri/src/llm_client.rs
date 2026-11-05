@@ -1,4 +1,6 @@
-use crate::settings::{PostProcessApiFormat, PostProcessProvider, ReasoningLevel};
+use crate::settings::{
+    OpenAiServiceTier, PostProcessApiFormat, PostProcessProvider, ReasoningLevel,
+};
 use log::{debug, error, info};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, REFERER, USER_AGENT};
 use serde::{Deserialize, Serialize};
@@ -134,11 +136,27 @@ struct ChatCompletionRequest {
     response_format: Option<ResponseFormat>,
     #[serde(flatten)]
     reasoning: ReasoningParams,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    service_tier: Option<&'static str>,
+}
+
+/// The `service_tier` to send, if any. Only OpenAI's own API knows its tiers.
+fn service_tier_param(
+    provider: &PostProcessProvider,
+    tier: OpenAiServiceTier,
+) -> Option<&'static str> {
+    match tier {
+        OpenAiServiceTier::Fast if provider.id == "openai" => Some("fast"),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Deserialize)]
 struct ChatCompletionResponse {
     choices: Vec<ChatChoice>,
+    /// The tier the provider actually used; OpenAI may serve a Fast request at
+    /// the default tier.
+    service_tier: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -441,12 +459,23 @@ pub async fn send_chat_completion(
     model: &str,
     prompt: String,
     reasoning: ReasoningLevel,
+    service_tier: OpenAiServiceTier,
 ) -> Result<Option<String>, String> {
     if provider.api_format == PostProcessApiFormat::Anthropic {
         return send_anthropic_message(provider, api_key, model, prompt, reasoning).await;
     }
 
-    send_chat_completion_with_schema(provider, api_key, model, prompt, None, None, reasoning).await
+    send_chat_completion_with_schema(
+        provider,
+        api_key,
+        model,
+        prompt,
+        None,
+        None,
+        reasoning,
+        service_tier,
+    )
+    .await
 }
 
 /// Send a chat completion request with structured output support.
@@ -468,6 +497,7 @@ pub async fn send_chat_completion_with_schema(
     system_prompt: Option<String>,
     json_schema: Option<Value>,
     reasoning: ReasoningLevel,
+    service_tier: OpenAiServiceTier,
 ) -> Result<Option<String>, String> {
     let base_url = provider.base_url.trim_end_matches('/');
     let url = format!("{}/chat/completions", base_url);
@@ -519,6 +549,7 @@ pub async fn send_chat_completion_with_schema(
         stream: false,
         response_format,
         reasoning,
+        service_tier: service_tier_param(provider, service_tier),
     };
 
     let mut response = client
@@ -588,6 +619,14 @@ pub async fn send_chat_completion_with_schema(
         .json()
         .await
         .map_err(|e| report_reqwest_error("Failed to parse API response", &e))?;
+
+    if let Some(requested) = request_body.service_tier {
+        debug!(
+            "Requested service tier '{}', served '{}'",
+            requested,
+            completion.service_tier.as_deref().unwrap_or("unknown")
+        );
+    }
 
     let Some(choice) = completion.choices.into_iter().next() else {
         return Ok(None);
@@ -857,6 +896,7 @@ mod tests {
             stream: false,
             response_format: None,
             reasoning,
+            service_tier: None,
         };
         serde_json::to_value(&request).unwrap()
     }
@@ -1204,6 +1244,7 @@ mod tests {
             "claude-haiku",
             "raw text".to_string(),
             ReasoningLevel::Off,
+            OpenAiServiceTier::Default,
         )
         .await;
         assert_eq!(result, Ok(Some("Cleaned text".to_string())));
@@ -1222,6 +1263,7 @@ mod tests {
             "test-model",
             "raw text".to_string(),
             ReasoningLevel::Off,
+            OpenAiServiceTier::Default,
         )
         .await;
         assert!(result.unwrap_err().contains("truncated"));
@@ -1240,6 +1282,7 @@ mod tests {
             "claude-haiku",
             "raw text".to_string(),
             ReasoningLevel::Off,
+            OpenAiServiceTier::Default,
         )
         .await;
         assert!(result.unwrap_err().contains("truncated"));

@@ -690,6 +690,14 @@
             "medium": "Medium",
             "high": "High"
           }
+        },
+        "serviceTier": {
+          "title": "Service Tier",
+          "description": "Fast mode answers sooner at a higher per-token price. Default uses your OpenAI project's tier.",
+          "tiers": {
+            "default": "Default",
+            "fast": "Fast"
+          }
         }
       },
       "prompts": {
