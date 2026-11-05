@@ -787,6 +787,35 @@ pub fn hide_recording_overlay(app_handle: &AppHandle) {
     }
 }
 
+/// How long to wait after hiding a focus-holding overlay before pasting, so the
+/// compositor can hand keyboard focus back to the window the user was in.
+#[cfg(target_os = "linux")]
+const FOCUS_RETURN_DELAY: Duration = Duration::from_millis(150);
+
+/// Hides the overlay at once when it may hold keyboard focus, so a paste lands
+/// in the user's window instead of the overlay. That happens on Wayland without
+/// layer-shell (GNOME): the overlay is a regular window there, and the
+/// compositor focuses it when shown. Blocks for [`FOCUS_RETURN_DELAY`] in that
+/// case, so call it off the main thread; elsewhere it does nothing.
+pub fn release_focus_for_paste(app_handle: &AppHandle) {
+    #[cfg(target_os = "linux")]
+    {
+        if !utils::is_wayland()
+            || LAYER_SHELL_ACTIVE.load(Ordering::SeqCst)
+            || !OVERLAY_SESSION_SHOWING.load(Ordering::SeqCst)
+        {
+            return;
+        }
+        if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+            debug!("Hiding overlay before paste so focus returns to the target window");
+            let _ = overlay_window.hide();
+            std::thread::sleep(FOCUS_RETURN_DELAY);
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = app_handle;
+}
+
 // Cached "overlay is enabled" flag, kept in sync with overlay_style. Avoids
 // reading the Tauri store on every audio callback (~24 Hz during recording).
 // Defaults to false so the audio path doesn't emit until lib.rs::setup

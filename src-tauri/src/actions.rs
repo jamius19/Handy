@@ -902,6 +902,9 @@ impl ShortcutAction for TranscribeAction {
                                         // UI while this paste ran.
                                         let owns_ui =
                                             || RECORDING_SESSION.load(Ordering::SeqCst) == session;
+                                        if owns_ui() {
+                                            utils::release_focus_for_paste(&ah_clone);
+                                        }
                                         let (outcome, notice) =
                                             match utils::paste(final_text, ah_clone.clone()) {
                                                 Ok(()) => {
