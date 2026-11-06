@@ -273,8 +273,11 @@ impl ModelManager {
             info!("Starting fresh download of {} from {}", model_id, url);
         }
 
+        // HTTP/1.1: one large stream gains nothing from HTTP/2, and hyper's
+        // fixed 2 MB HTTP/2 stream window would cap throughput on high-latency links.
         let client = reqwest::Client::builder()
             .connect_timeout(HTTP_CONNECT_TIMEOUT)
+            .http1_only()
             .build()?;
         let mut request = client.get(url);
         if resume_from > 0 {

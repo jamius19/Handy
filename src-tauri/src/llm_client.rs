@@ -133,7 +133,7 @@ fn remember_rejection(key: String) {
     }
 }
 
-/// How long a warm-up counts as fresh. Below the shared pool's 30 s idle
+/// How long a warm-up counts as fresh. Below the shared pool's 60 s idle
 /// timeout, so the connection it opened is still pooled when this runs out.
 const WARM_UP_FRESH_FOR: Duration = Duration::from_secs(20);
 
@@ -401,15 +401,22 @@ impl ProviderClient {
     }
 }
 
-/// Process-wide client. A short idle timeout and TCP keepalive keep the pool
-/// from handing out connections that died during sleep or a network change.
+/// Process-wide client. The idle timeout is long enough for a pooled
+/// connection to outlast a cloud transcription between the warm-up and the
+/// post-processing request. HTTP/2 pings, sent even while the connection is
+/// idle, drop connections that died during sleep or a network change before
+/// the pool hands them out; TCP keepalive covers HTTP/1.1 servers (local
+/// `http://` endpoints and servers without HTTP/2).
 pub(crate) fn shared_client() -> Result<&'static reqwest::Client, String> {
     static SHARED: OnceLock<reqwest::Client> = OnceLock::new();
     if let Some(client) = SHARED.get() {
         return Ok(client);
     }
     let client = reqwest::Client::builder()
-        .pool_idle_timeout(Duration::from_secs(30))
+        .pool_idle_timeout(Duration::from_secs(60))
+        .http2_keep_alive_interval(Some(Duration::from_secs(15)))
+        .http2_keep_alive_timeout(Duration::from_secs(10))
+        .http2_keep_alive_while_idle(true)
         .tcp_keepalive(Duration::from_secs(15))
         .connect_timeout(Duration::from_secs(10))
         .build()
