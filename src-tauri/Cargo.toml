@@ -67,6 +67,9 @@ handy-recorder = "0.1"
 # `llm_client::shared_client` never run.
 reqwest = { version = "0.12", features = ["json", "stream", "gzip", "brotli", "deflate", "multipart", "native-tls-alpn"] }
 futures-util = "0.3"
+# The connection-logging layer on the shared client (`llm_client/connection_log.rs`).
+tower-layer = "0.3"
+tower-service = "0.3"
 # The gpt-live-transcribe Realtime WebSocket, with the TLS reqwest uses.
 tokio-tungstenite = { version = "0.30.0", features = ["native-tls"] }
 base64 = "0.22"

@@ -2585,6 +2585,8 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-tungstenite",
+ "tower-layer",
+ "tower-service",
  "transcribe-cpp",
  "webkit2gtk-sys",
  "webview2-com",

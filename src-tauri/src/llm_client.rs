@@ -1,3 +1,5 @@
+mod connection_log;
+
 use crate::settings::{
     OpenAiServiceTier, PostProcessApiFormat, PostProcessProvider, ReasoningLevel,
 };
@@ -406,7 +408,8 @@ impl ProviderClient {
 /// post-processing request. HTTP/2 pings, sent even while the connection is
 /// idle, drop connections that died during sleep or a network change before
 /// the pool hands them out; TCP keepalive covers HTTP/1.1 servers (local
-/// `http://` endpoints and servers without HTTP/2).
+/// `http://` endpoints and servers without HTTP/2). Every connection it opens,
+/// or fails to open, is logged.
 pub(crate) fn shared_client() -> Result<&'static reqwest::Client, String> {
     static SHARED: OnceLock<reqwest::Client> = OnceLock::new();
     if let Some(client) = SHARED.get() {
@@ -414,11 +417,12 @@ pub(crate) fn shared_client() -> Result<&'static reqwest::Client, String> {
     }
     let client = reqwest::Client::builder()
         .pool_idle_timeout(Duration::from_secs(60))
-        .http2_keep_alive_interval(Some(Duration::from_secs(15)))
+        .http2_keep_alive_interval(Some(Duration::from_secs(10)))
         .http2_keep_alive_timeout(Duration::from_secs(10))
         .http2_keep_alive_while_idle(true)
         .tcp_keepalive(Duration::from_secs(15))
         .connect_timeout(Duration::from_secs(10))
+        .connector_layer(connection_log::ConnectionLogLayer)
         .build()
         .map_err(|e| report_reqwest_error("Failed to build HTTP client", &e))?;
     Ok(SHARED.get_or_init(|| client))
