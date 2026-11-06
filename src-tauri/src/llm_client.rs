@@ -561,11 +561,10 @@ pub async fn send_chat_completion_with_schema(
         .map_err(|e| report_reqwest_error("HTTP request failed", &e))?;
     let mut status = response.status();
     debug!(
-        "Chat completion response received with status {} over {:?} from {} in {:.2?}",
+        "Chat completion response received with status {} over {:?} from {}",
         status,
         response.version(),
-        sanitized_url(response.url()),
-        started.elapsed()
+        sanitized_url(response.url())
     );
 
     // A 400/422 on a request carrying reasoning fields is almost always
@@ -583,7 +582,6 @@ pub async fn send_chat_completion_with_schema(
         );
 
         request_body.reasoning = ReasoningParams::default();
-        let started = Instant::now();
         response = client
             .post(&url)
             .json(&request_body)
@@ -592,11 +590,10 @@ pub async fn send_chat_completion_with_schema(
             .map_err(|e| report_reqwest_error("HTTP retry failed", &e))?;
         status = response.status();
         debug!(
-            "Chat completion retry response received with status {} over {:?} from {} in {:.2?}",
+            "Chat completion retry response received with status {} over {:?} from {}",
             status,
             response.version(),
-            sanitized_url(response.url()),
-            started.elapsed()
+            sanitized_url(response.url())
         );
 
         if status.is_success() {
@@ -623,6 +620,9 @@ pub async fn send_chat_completion_with_schema(
         .json()
         .await
         .map_err(|e| report_reqwest_error("Failed to parse API response", &e))?;
+    // Measured to the end of the body: OpenRouter, for one, sends the
+    // headers before the model has produced anything.
+    debug!("Chat completion finished in {:.2?}", started.elapsed());
 
     if let Some(requested) = request_body.service_tier {
         debug!(
@@ -682,11 +682,10 @@ async fn send_anthropic_message(
         .map_err(|e| report_reqwest_error("HTTP request failed", &e))?;
     let mut status = response.status();
     debug!(
-        "Anthropic Messages response received with status {} over {:?} from {} in {:.2?}",
+        "Anthropic Messages response received with status {} over {:?} from {}",
         status,
         response.version(),
-        sanitized_url(response.url()),
-        started.elapsed()
+        sanitized_url(response.url())
     );
 
     if status.as_u16() == 400 && request_body.has_reasoning() {
@@ -725,6 +724,10 @@ async fn send_anthropic_message(
         .json()
         .await
         .map_err(|e| report_reqwest_error("Failed to parse API response", &e))?;
+    debug!(
+        "Anthropic Messages request finished in {:.2?}",
+        started.elapsed()
+    );
 
     // A response cut off at the token budget is incomplete; pasting it would
     // silently drop the end of the dictation.
