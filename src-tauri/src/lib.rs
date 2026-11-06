@@ -395,6 +395,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     // tauri-plugin-autostart elsewhere)
     autostart::apply_autostart(app_handle, settings.autostart_enabled);
 
+    #[cfg(target_os = "linux")]
+    utils::detect_gdk_backend();
+
     // Create the recording overlay window (hidden by default)
     utils::create_recording_overlay(app_handle);
 }

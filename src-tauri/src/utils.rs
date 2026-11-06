@@ -3,6 +3,8 @@ use crate::managers::transcription::TranscriptionManager;
 use crate::shortcut;
 use crate::TranscriptionCoordinator;
 use log::info;
+#[cfg(target_os = "linux")]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
@@ -140,6 +142,33 @@ pub fn is_wayland() -> bool {
         || std::env::var("XDG_SESSION_TYPE")
             .map(|v| v.to_lowercase() == "wayland")
             .unwrap_or(false)
+}
+
+/// Whether GTK opened a Wayland display, set by [`detect_gdk_backend`].
+#[cfg(target_os = "linux")]
+static GDK_ON_WAYLAND: AtomicBool = AtomicBool::new(false);
+
+/// Records whether GTK opened a Wayland display or an X11 one. Call once on
+/// the main thread after GTK is initialized.
+#[cfg(target_os = "linux")]
+pub fn detect_gdk_backend() {
+    use gtk::glib::prelude::ObjectExt;
+
+    let on_wayland = gtk::gdk::Display::default()
+        .map(|display| display.type_().name() == "GdkWaylandDisplay")
+        .unwrap_or(false);
+    GDK_ON_WAYLAND.store(on_wayland, Ordering::Relaxed);
+    info!(
+        "GDK display backend: {}",
+        if on_wayland { "Wayland" } else { "X11" }
+    );
+}
+
+/// Whether this process is a Wayland client. Unlike [`is_wayland`], this is
+/// false under XWayland (`GDK_BACKEND=x11`) in a Wayland session.
+#[cfg(target_os = "linux")]
+pub fn gdk_is_wayland() -> bool {
+    GDK_ON_WAYLAND.load(Ordering::Relaxed)
 }
 
 /// Check if running on KDE Plasma desktop environment

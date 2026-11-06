@@ -13,7 +13,7 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 #[cfg(target_os = "linux")]
-use crate::utils::{is_gnome_wayland, is_kde_wayland, is_wayland};
+use crate::utils::{gdk_is_wayland, is_gnome_wayland, is_kde_wayland, is_wayland};
 
 /// Serializes pastes: overlapping ones would restore each other's transcript as
 /// the user's clipboard. Only taken by `paste`, which never runs on the main thread.
@@ -49,7 +49,9 @@ fn with_enigo<T: Send + 'static>(
 
 fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), String> {
     #[cfg(target_os = "linux")]
-    if is_wayland() && is_wl_copy_available() {
+    // Under XWayland, wl-copy would need a focused surface (GNOME has no
+    // data-control), so the X11 clipboard is used instead.
+    if gdk_is_wayland() && is_wl_copy_available() {
         info!("Using wl-copy for clipboard write on Wayland");
         return write_clipboard_via_wl_copy(text);
     }

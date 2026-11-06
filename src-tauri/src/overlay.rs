@@ -800,7 +800,7 @@ const FOCUS_RETURN_DELAY: Duration = Duration::from_millis(150);
 pub fn release_focus_for_paste(app_handle: &AppHandle) {
     #[cfg(target_os = "linux")]
     {
-        if !utils::is_wayland()
+        if !utils::gdk_is_wayland()
             || LAYER_SHELL_ACTIVE.load(Ordering::SeqCst)
             || !OVERLAY_SESSION_SHOWING.load(Ordering::SeqCst)
         {
