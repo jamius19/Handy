@@ -131,10 +131,21 @@ fn strip_think_block(s: &str) -> &str {
     s
 }
 
-/// Build a system prompt from the user's prompt template.
-/// Removes `${output}` placeholder since the transcription is sent as the user message.
+/// Build a system prompt from the user's prompt template. The transcription is
+/// sent as the user message, so `${output}` points there. Removing it instead
+/// left the template's transcript block empty, and prompts that say "if the
+/// transcript is empty, output nothing" then made the model return nothing.
 fn build_system_prompt(prompt_template: &str) -> String {
-    prompt_template.replace("${output}", "").trim().to_string()
+    prompt_template
+        .replace("${output}", "(provided in the user message)")
+        .trim()
+        .to_string()
+}
+
+/// Wraps the transcription in the `<transcript>` tags the default prompt tells
+/// the model not to take instructions from.
+fn build_user_content(transcription: &str) -> String {
+    format!("<transcript>\n{transcription}\n</transcript>")
 }
 
 /// Returns `true` when a transcription has no meaningful content to
@@ -276,7 +287,7 @@ async fn post_process_transcription(
         debug!("Using structured outputs for provider '{}'", provider.id);
 
         let system_prompt = build_system_prompt(&prompt);
-        let user_content = transcription.to_string();
+        let user_content = build_user_content(transcription);
 
         // Handle Apple Intelligence separately since it uses native Swift APIs
         if provider.id == APPLE_INTELLIGENCE_PROVIDER_ID {
