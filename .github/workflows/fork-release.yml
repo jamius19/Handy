@@ -3,8 +3,8 @@
 
 name: "Fork Release"
 
-# Builds this fork's Linux (.deb, AppImage) and Windows x64 (MSI, NSIS)
-# bundles into a draft release, with updater signatures and latest.json.
+# Builds this fork's Linux .deb and Windows x64 NSIS installer into a draft
+# release, with updater signatures and latest.json.
 # Updates are signed with TAURI_SIGNING_PRIVATE_KEY from the repository
 # secrets. The fork has no Authenticode certificate, so the Windows bundles
 # are built unsigned by dropping tauri.conf.json's Azure signCommand.
@@ -58,12 +58,9 @@ jobs:
           - platform: "ubuntu-22.04" # Build .deb on 22.04, as upstream does
             args: "--bundles deb"
             target: "x86_64-unknown-linux-gnu"
-          - platform: "ubuntu-24.04" # Build AppImage on 24.04, as upstream does
-            args: "--bundles appimage"
-            target: "x86_64-unknown-linux-gnu"
           - platform: "windows-latest"
             args: >-
-              --bundles msi,nsis
+              --bundles nsis
               --config '{"bundle":{"windows":{"signCommand":null}}}'
             target: "x86_64-pc-windows-msvc"
 
