@@ -709,6 +709,14 @@
             "default": "Default",
             "fast": "Fast"
           }
+        },
+        "openrouterProvider": {
+          "title": "Provider Routing",
+          "description": "JSON object sent as OpenRouter's provider field, to pick, order or exclude providers. Leave empty to let OpenRouter choose.",
+          "show": "Show",
+          "hide": "Hide",
+          "invalidJson": "Not valid JSON.",
+          "notObject": "Must be a JSON object, like { \"sort\": \"latency\" }."
         }
       },
       "prompts": {

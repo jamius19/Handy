@@ -355,6 +355,7 @@ async fn post_process_transcription(
             Some(json_schema),
             reasoning,
             settings.post_process_openai_service_tier,
+            settings.post_process_openrouter_provider.as_deref(),
         )
         .await
         {
@@ -412,6 +413,7 @@ async fn post_process_transcription(
         processed_prompt,
         reasoning,
         settings.post_process_openai_service_tier,
+        settings.post_process_openrouter_provider.as_deref(),
     )
     .await
     {

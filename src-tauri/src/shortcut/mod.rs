@@ -1260,6 +1260,31 @@ pub fn change_post_process_openai_service_tier_setting(
     Ok(())
 }
 
+/// Stores the OpenRouter `provider` routing object. Empty or `null` clears it;
+/// anything else must be a JSON object.
+#[tauri::command]
+#[specta::specta]
+pub fn change_post_process_openrouter_provider_setting(
+    app: AppHandle,
+    provider: Option<String>,
+) -> Result<(), String> {
+    let provider = provider
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty() && value != "null");
+    if let Some(value) = &provider {
+        let parsed: serde_json::Value =
+            serde_json::from_str(value).map_err(|e| format!("Invalid JSON: {}", e))?;
+        if !parsed.is_object() {
+            return Err("Provider routing must be a JSON object".to_string());
+        }
+    }
+
+    let mut settings = settings::get_settings(&app);
+    settings.post_process_openrouter_provider = provider;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn change_openai_live_transcribe_delay_setting(

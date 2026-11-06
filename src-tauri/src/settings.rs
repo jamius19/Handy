@@ -537,6 +537,10 @@ pub struct AppSettings {
     /// Service tier for the OpenAI provider; other providers ignore it.
     #[serde(default)]
     pub post_process_openai_service_tier: OpenAiServiceTier,
+    /// JSON object sent as `provider` in OpenRouter requests; None sends no
+    /// `provider` field. Other providers ignore it.
+    #[serde(default)]
+    pub post_process_openrouter_provider: Option<String>,
     #[serde(default = "default_post_process_prompts")]
     pub post_process_prompts: Vec<LLMPrompt>,
     #[serde(default)]
@@ -1089,6 +1093,7 @@ pub fn get_default_settings() -> AppSettings {
         post_process_models: default_post_process_models(),
         post_process_reasoning: HashMap::new(),
         post_process_openai_service_tier: OpenAiServiceTier::Default,
+        post_process_openrouter_provider: None,
         post_process_prompts: default_post_process_prompts(),
         post_process_selected_prompt_id: None,
         mute_while_recording: false,

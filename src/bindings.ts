@@ -304,6 +304,18 @@ async changePostProcessOpenaiServiceTierSetting(tier: OpenAiServiceTier) : Promi
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Stores the OpenRouter `provider` routing object. Empty or `null` clears it;
+ * anything else must be a JSON object.
+ */
+async changePostProcessOpenrouterProviderSetting(provider: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_post_process_openrouter_provider_setting", { provider }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async changeOpenaiLiveTranscribeDelaySetting(delay: LiveTranscribeDelay) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_openai_live_transcribe_delay_setting", { delay }) };
@@ -1047,10 +1059,8 @@ async updateRecordingRetentionPeriod(period: string) : Promise<Result<null, stri
 }
 },
 /**
- * Checks if the Mac is a laptop by detecting battery presence
- *
- * This uses pmset to check for battery information.
- * Returns true if a battery is detected (laptop), false otherwise (desktop)
+ * Stub implementation for non-macOS platforms
+ * Always returns false since laptop detection is macOS-specific
  */
 async isLaptop() : Promise<Result<boolean, string>> {
     try {
@@ -1145,7 +1155,7 @@ whats_new_last_seen_version?: string; selected_model?: string; onboarding_comple
  * Which input channel to use on the selected microphone device.
  * None means "average all channels" (original behavior).
  */
-selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; translate_to_english?: boolean; selected_language?: string;
+selected_channel?: number | null; clamshell_microphone?: string | null; selected_output_device?: string | null; translate_to_english?: boolean; selected_language?: string; 
 /**
  * Every language the person dictates in (codes, e.g. ["en", "zh"]),
  * picked during onboarding. Empty until then.
@@ -1162,7 +1172,12 @@ post_process_reasoning?: Partial<{ [key in string]: ReasoningLevel }>;
 /**
  * Service tier for the OpenAI provider; other providers ignore it.
  */
-post_process_openai_service_tier?: OpenAiServiceTier; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; experimental_enabled?: boolean; lazy_stream_close?: boolean; 
+post_process_openai_service_tier?: OpenAiServiceTier; 
+/**
+ * JSON object sent as `provider` in OpenRouter requests; None sends no
+ * `provider` field. Other providers ignore it.
+ */
+post_process_openrouter_provider?: string | null; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; experimental_enabled?: boolean; lazy_stream_close?: boolean; 
 /**
  * Experimental, macOS only: move a Bluetooth headset (AirPods) to this
  * Mac while recording, so its microphone does not return silence while

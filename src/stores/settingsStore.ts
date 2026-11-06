@@ -177,6 +177,8 @@ const settingUpdaters: {
     commands.changePostProcessOpenaiServiceTierSetting(
       value as OpenAiServiceTier,
     ),
+  post_process_openrouter_provider: (value) =>
+    commands.changePostProcessOpenrouterProviderSetting(value as string | null),
   openai_live_transcribe_delay: (value) =>
     commands.changeOpenaiLiveTranscribeDelaySetting(
       value as LiveTranscribeDelay,

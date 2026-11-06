@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { RefreshCcw } from "lucide-react";
+import { ChevronRight, RefreshCcw } from "lucide-react";
 import {
   commands,
   type OpenAiServiceTier,
@@ -29,6 +29,96 @@ import { useSettings } from "../../../hooks/useSettings";
 
 const REASONING_LEVELS: ReasoningLevel[] = ["off", "low", "medium", "high"];
 const OPENAI_SERVICE_TIERS: OpenAiServiceTier[] = ["default", "fast"];
+const OPENROUTER_PROVIDER_PLACEHOLDER =
+  '{ "order": ["anthropic"], "allow_fallbacks": false }';
+
+/** Empty or `null` clears the setting; anything else must be a JSON object. */
+const validateProviderRouting = (
+  text: string,
+): "invalidJson" | "notObject" | null => {
+  const trimmed = text.trim();
+  if (trimmed === "" || trimmed === "null") return null;
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    return typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+      ? null
+      : "notObject";
+  } catch {
+    return "invalidJson";
+  }
+};
+
+const OpenRouterProviderRouting: React.FC = () => {
+  const { t } = useTranslation();
+  const { getSetting, updateSetting, isUpdating } = useSettings();
+  const stored = getSetting("post_process_openrouter_provider") ?? null;
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [draft, setDraft] = useState(stored ?? "");
+
+  useEffect(() => {
+    setDraft(stored ?? "");
+  }, [stored]);
+
+  const error = validateProviderRouting(draft);
+
+  const handleBlur = () => {
+    if (error) return;
+    const trimmed = draft.trim();
+    const value = trimmed === "" || trimmed === "null" ? null : trimmed;
+    if (value !== stored) {
+      updateSetting("post_process_openrouter_provider", value);
+    }
+  };
+
+  return (
+    <div>
+      <SettingContainer
+        title={t("settings.postProcessing.api.openrouterProvider.title")}
+        description={t(
+          "settings.postProcessing.api.openrouterProvider.description",
+        )}
+        descriptionMode="tooltip"
+        layout="horizontal"
+        grouped={true}
+      >
+        <Button
+          onClick={() => setIsExpanded((expanded) => !expanded)}
+          variant="secondary"
+          size="sm"
+          aria-expanded={isExpanded}
+          className="flex items-center gap-1"
+        >
+          <ChevronRight
+            className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+          />
+          {isExpanded
+            ? t("settings.postProcessing.api.openrouterProvider.hide")
+            : t("settings.postProcessing.api.openrouterProvider.show")}
+        </Button>
+      </SettingContainer>
+      {isExpanded && (
+        <div className="px-4 pb-3 flex flex-col gap-2">
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={handleBlur}
+            placeholder={OPENROUTER_PROVIDER_PLACEHOLDER}
+            disabled={isUpdating("post_process_openrouter_provider")}
+            spellCheck={false}
+            className={`font-mono ${error ? "border-error hover:border-error focus:border-error" : ""}`}
+          />
+          {error && (
+            <p className="text-xs text-error">
+              {t(`settings.postProcessing.api.openrouterProvider.${error}`)}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const PostProcessingSettingsApiComponent: React.FC = () => {
   const { t } = useTranslation();
@@ -234,6 +324,10 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
             disabled={isUpdating("post_process_openai_service_tier")}
           />
         </SettingContainer>
+      )}
+
+      {state.selectedProviderId === "openrouter" && (
+        <OpenRouterProviderRouting />
       )}
     </>
   );

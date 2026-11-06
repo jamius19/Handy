@@ -725,6 +725,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_post_process_model_setting,
             shortcut::change_post_process_reasoning_setting,
             shortcut::change_post_process_openai_service_tier_setting,
+            shortcut::change_post_process_openrouter_provider_setting,
             shortcut::change_openai_live_transcribe_delay_setting,
             shortcut::set_post_process_provider,
             shortcut::fetch_post_process_models,

@@ -1,7 +1,7 @@
 use crate::settings::{
     OpenAiServiceTier, PostProcessApiFormat, PostProcessProvider, ReasoningLevel,
 };
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, REFERER, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -138,6 +138,8 @@ struct ChatCompletionRequest {
     reasoning: ReasoningParams,
     #[serde(skip_serializing_if = "Option::is_none")]
     service_tier: Option<&'static str>,
+    #[serde(rename = "provider", skip_serializing_if = "Option::is_none")]
+    provider_routing: Option<Value>,
 }
 
 /// The `service_tier` to send, if any. Only OpenAI's own API knows its tiers.
@@ -148,6 +150,26 @@ fn service_tier_param(
     match tier {
         OpenAiServiceTier::Fast if provider.id == "openai" => Some("fast"),
         _ => None,
+    }
+}
+
+/// The `provider` routing object to send, if any. Only OpenRouter reads it.
+/// The setting is checked when saved, so a parse failure here means the
+/// store was edited by hand; the request then goes out without it.
+fn openrouter_provider_param(
+    provider: &PostProcessProvider,
+    routing: Option<&str>,
+) -> Option<Value> {
+    if provider.id != "openrouter" {
+        return None;
+    }
+    let routing = routing?;
+    match serde_json::from_str::<Value>(routing) {
+        Ok(value) if value.is_object() => Some(value),
+        _ => {
+            warn!("Ignoring OpenRouter provider routing setting: not a JSON object");
+            None
+        }
     }
 }
 
@@ -460,6 +482,7 @@ pub async fn send_chat_completion(
     prompt: String,
     reasoning: ReasoningLevel,
     service_tier: OpenAiServiceTier,
+    openrouter_provider: Option<&str>,
 ) -> Result<Option<String>, String> {
     if provider.api_format == PostProcessApiFormat::Anthropic {
         return send_anthropic_message(provider, api_key, model, prompt, reasoning).await;
@@ -474,6 +497,7 @@ pub async fn send_chat_completion(
         None,
         reasoning,
         service_tier,
+        openrouter_provider,
     )
     .await
 }
@@ -498,6 +522,7 @@ pub async fn send_chat_completion_with_schema(
     json_schema: Option<Value>,
     reasoning: ReasoningLevel,
     service_tier: OpenAiServiceTier,
+    openrouter_provider: Option<&str>,
 ) -> Result<Option<String>, String> {
     let base_url = provider.base_url.trim_end_matches('/');
     let url = format!("{}/chat/completions", base_url);
@@ -550,6 +575,7 @@ pub async fn send_chat_completion_with_schema(
         response_format,
         reasoning,
         service_tier: service_tier_param(provider, service_tier),
+        provider_routing: openrouter_provider_param(provider, openrouter_provider),
     };
 
     let started = Instant::now();
@@ -906,6 +932,7 @@ mod tests {
             response_format: None,
             reasoning,
             service_tier: None,
+            provider_routing: None,
         };
         serde_json::to_value(&request).unwrap()
     }
@@ -1254,6 +1281,7 @@ mod tests {
             "raw text".to_string(),
             ReasoningLevel::Off,
             OpenAiServiceTier::Default,
+            None,
         )
         .await;
         assert_eq!(result, Ok(Some("Cleaned text".to_string())));
@@ -1273,6 +1301,7 @@ mod tests {
             "raw text".to_string(),
             ReasoningLevel::Off,
             OpenAiServiceTier::Default,
+            None,
         )
         .await;
         assert!(result.unwrap_err().contains("truncated"));
@@ -1292,6 +1321,7 @@ mod tests {
             "raw text".to_string(),
             ReasoningLevel::Off,
             OpenAiServiceTier::Default,
+            None,
         )
         .await;
         assert!(result.unwrap_err().contains("truncated"));
