@@ -8,7 +8,7 @@ use serde_json::Value;
 use std::collections::HashSet;
 use std::error::Error as StdError;
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Serialize)]
 struct ChatMessage {
@@ -552,6 +552,7 @@ pub async fn send_chat_completion_with_schema(
         service_tier: service_tier_param(provider, service_tier),
     };
 
+    let started = Instant::now();
     let mut response = client
         .post(&url)
         .json(&request_body)
@@ -560,10 +561,11 @@ pub async fn send_chat_completion_with_schema(
         .map_err(|e| report_reqwest_error("HTTP request failed", &e))?;
     let mut status = response.status();
     debug!(
-        "Chat completion response received with status {} over {:?} from {}",
+        "Chat completion response received with status {} over {:?} from {} in {:.2?}",
         status,
         response.version(),
-        sanitized_url(response.url())
+        sanitized_url(response.url()),
+        started.elapsed()
     );
 
     // A 400/422 on a request carrying reasoning fields is almost always
@@ -581,6 +583,7 @@ pub async fn send_chat_completion_with_schema(
         );
 
         request_body.reasoning = ReasoningParams::default();
+        let started = Instant::now();
         response = client
             .post(&url)
             .json(&request_body)
@@ -589,10 +592,11 @@ pub async fn send_chat_completion_with_schema(
             .map_err(|e| report_reqwest_error("HTTP retry failed", &e))?;
         status = response.status();
         debug!(
-            "Chat completion retry response received with status {} over {:?} from {}",
+            "Chat completion retry response received with status {} over {:?} from {} in {:.2?}",
             status,
             response.version(),
-            sanitized_url(response.url())
+            sanitized_url(response.url()),
+            started.elapsed()
         );
 
         if status.is_success() {
@@ -669,6 +673,7 @@ async fn send_anthropic_message(
     }
 
     let client = create_client(provider, &api_key)?;
+    let started = Instant::now();
     let mut response = client
         .post(&url)
         .json(&request_body)
@@ -677,10 +682,11 @@ async fn send_anthropic_message(
         .map_err(|e| report_reqwest_error("HTTP request failed", &e))?;
     let mut status = response.status();
     debug!(
-        "Anthropic Messages response received with status {} over {:?} from {}",
+        "Anthropic Messages response received with status {} over {:?} from {} in {:.2?}",
         status,
         response.version(),
-        sanitized_url(response.url())
+        sanitized_url(response.url()),
+        started.elapsed()
     );
 
     if status.as_u16() == 400 && request_body.has_reasoning() {
