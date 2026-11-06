@@ -83,9 +83,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJBQjcyMDk1MjA2NjAxRjkKUldUNUFXWWdsU0MzdXRRZi8zYzhqV2FaNUVDbDd2Rk5VM1IvWWowVXdmRFNKQ1BrMXF5RFFsLy8K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRBOEJDODAyRkQ2QkM2OTIKUldTU3htdjlBc2lMU2pSZHBUbERTdytMRXc3UHVDc05VMVBJalhEV2tTZ0JnaTFlZWpEUzMvQXYK",
       "endpoints": [
-        "https://github.com/cjpais/Handy/releases/latest/download/latest.json"
+        "https://github.com/jamius19/Handy/releases/latest/download/latest.json"
       ]
     }
   }
