@@ -126,9 +126,17 @@ fn configure_layer_shell_surface(
     width: f64,
     height: f64,
 ) {
-    use gtk::prelude::{GtkWindowExt, WidgetExt};
-
     configure_layer_shell_position(gtk_window, position);
+    set_gtk_window_size(gtk_window, width, height);
+}
+
+/// Sizes the overlay through GTK's size request. The overlay isn't resizable,
+/// and GTK3 sizes such a window from its request rather than from
+/// `gtk_window_resize`: with no request the webview gives a 200px-tall window
+/// whatever Tauri's `set_size` asks for.
+#[cfg(target_os = "linux")]
+fn set_gtk_window_size(gtk_window: &gtk::ApplicationWindow, width: f64, height: f64) {
+    use gtk::prelude::{GtkWindowExt, WidgetExt};
 
     gtk_window.set_size_request(
         width.round().max(1.0) as i32,
@@ -558,9 +566,14 @@ fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
 
         if !shown_with_layer_shell {
             let size_started = std::time::Instant::now();
-            #[cfg(not(target_os = "windows"))]
+            #[cfg(target_os = "macos")]
             let _ =
                 overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
+            #[cfg(target_os = "linux")]
+            match overlay_window.gtk_window() {
+                Ok(gtk_window) => set_gtk_window_size(&gtk_window, width, height),
+                Err(error) => log::error!("Failed to access GTK overlay window: {error}"),
+            }
             #[cfg(target_os = "windows")]
             WINDOWS_OVERLAY_IS_STREAMING.store(is_live_state(state), Ordering::Relaxed);
             let size_elapsed = size_started.elapsed();
