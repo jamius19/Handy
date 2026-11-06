@@ -18,6 +18,7 @@ mod llm_client;
 mod managers;
 mod memory;
 mod notices;
+mod openai_live_transcription;
 mod openai_transcription;
 mod overlay;
 mod paste_tx;

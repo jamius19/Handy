@@ -4,7 +4,7 @@ use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, S
 use crate::audio_toolkit::VadPolicy;
 use crate::managers::audio::{recording_notice_code, AudioRecordingManager};
 use crate::managers::history::HistoryManager;
-use crate::managers::model::{is_cloud_model, ModelManager};
+use crate::managers::model::{is_cloud_model, is_live_cloud_model, ModelManager};
 use crate::managers::transcription::policy::{live_decode, LiveDecode, ModelTraits};
 use crate::managers::transcription::StreamWorkKind;
 use crate::managers::transcription::{Transcription, TranscriptionManager};
@@ -539,12 +539,12 @@ impl ShortcutAction for TranscribeAction {
         // Use the app-facing model capability as the single pre-recording source
         // for live streaming decisions. Unknown support is represented as false
         // until the model registry is updated by discovery or runtime load.
-        // A cloud model transcribes the whole recording at the end: no live decode.
-        let model_supports_streaming = !cloud_transcription
-            && selected_model_info
-                .as_ref()
-                .map(|m| m.supports_streaming)
-                .unwrap_or(false);
+        // Of the cloud models only gpt-live-transcribe streams; gpt-transcribe
+        // transcribes the whole recording at the end.
+        let model_supports_streaming = selected_model_info
+            .as_ref()
+            .map(|m| m.supports_streaming)
+            .unwrap_or(false);
         let vad_policy = if !settings.vad_enabled {
             VadPolicy::Disabled
         } else if model_supports_streaming {
@@ -705,7 +705,9 @@ impl ShortcutAction for TranscribeAction {
 
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
         let post_process = self.post_process;
-        let cloud_transcription = is_cloud_model(&get_settings(app).selected_model);
+        let selected_model = get_settings(app).selected_model;
+        let cloud_transcription = is_cloud_model(&selected_model);
+        let live_cloud_transcription = is_live_cloud_model(&selected_model);
         let cancel_generation = rm.cancel_generation();
 
         tauri::async_runtime::spawn(async move {
@@ -759,11 +761,18 @@ impl ShortcutAction for TranscribeAction {
                     // as an error, so it never starts a batch run.
                     let transcription_time = Instant::now();
                     let transcription_result = if cloud_transcription {
-                        // Drop a live decode left from a start with the local
-                        // model, so it can't block the next start_stream.
-                        tm.cancel_stream();
+                        // gpt-live-transcribe has had the audio all along.
+                        // Otherwise drop a live decode left from a start with
+                        // the local model, so it can't block the next
+                        // start_stream.
+                        let live = if live_cloud_transcription {
+                            tm.finish_cloud_stream()
+                        } else {
+                            tm.cancel_stream();
+                            None
+                        };
                         complete_unless_cancelled(
-                            openai_transcription::transcribe(&ah, &samples),
+                            openai_transcription::transcribe_recording(&ah, &samples, live),
                             || rm.was_cancelled_since(cancel_generation),
                         )
                         .await

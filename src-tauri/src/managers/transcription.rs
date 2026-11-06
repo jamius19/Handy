@@ -13,8 +13,9 @@ use crate::language_detection::{
     IdentifyError, LanguageDecision, LanguageDetector, LanguageSource, Plan,
 };
 use crate::managers::audio::{create_smoothed_detector, AudioRecordingManager};
-use crate::managers::model::{is_cloud_model, ModelManager};
+use crate::managers::model::{is_cloud_model, is_live_cloud_model, ModelManager};
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
+use crate::openai_live_transcription::{LiveResult, LiveTranscription};
 use crate::overlay;
 use crate::settings::{
     get_settings, AppSettings, ChineseScript, ModelUnloadTimeout, TranscribeAcceleratorSetting,
@@ -33,6 +34,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_specta::Event;
+use tokio::sync::oneshot;
 use transcribe_cpp::{Backend, RunOptions, Task, Transcript};
 
 mod chunked;
@@ -114,6 +116,10 @@ enum StreamCmd {
         reply: mpsc::Sender<StreamFinalizeReply>,
         samples: usize,
     },
+    /// End a `gpt-live-transcribe` stream; its final transcript goes to the
+    /// reply. A local decode drops the reply, so the recording goes to
+    /// `gpt-transcribe` instead.
+    FinishCloud(LiveResult),
     Cancel,
 }
 
@@ -840,6 +846,12 @@ impl TranscriptionManager {
             stream_active: Arc::clone(&self.stream_active),
         };
 
+        // A cloud model loads nothing to wait for.
+        if is_live_cloud_model(&get_settings(&self.app_handle).selected_model) {
+            self.run_cloud_stream(rx, &cancelled);
+            return;
+        }
+
         // Wait for any in-progress model load to finish (start_stream races the
         // background load kicked off when recording starts).
         {
@@ -901,12 +913,55 @@ impl TranscriptionManager {
                     return;
                 }
                 // Dropping the session resets the worker's stream.
-                StreamCmd::Cancel => return,
+                StreamCmd::FinishCloud(_) | StreamCmd::Cancel => return,
             }
         }
         // The channel closed without finalize/cancel; dropping the session
         // resets the worker's stream. `_worker` drops after, clearing this
         // worker's flags.
+    }
+
+    /// The live decode of `gpt-live-transcribe`: audio goes to OpenAI as it
+    /// is recorded, and its text so far shows on the live overlay.
+    fn run_cloud_stream(&self, rx: mpsc::Receiver<StreamCmd>, cancelled: &AtomicBool) {
+        let app_handle = self.app_handle.clone();
+        let session = LiveTranscription::start(&self.app_handle, move |text| {
+            emit_stream_text(&app_handle, text, "")
+        });
+        self.stream_active.store(true, Ordering::Release);
+        info!("Live cloud transcription started (gpt-live-transcribe)");
+
+        while let Ok(cmd) = rx.recv() {
+            match cmd {
+                StreamCmd::Feed(pcm) => {
+                    if !cancelled.load(Ordering::Acquire) {
+                        session.feed(pcm);
+                    }
+                }
+                StreamCmd::FinishCloud(reply) => {
+                    session.finish(reply);
+                    return;
+                }
+                // The model changed to a local one while recording: it
+                // transcribes the recording in batch.
+                StreamCmd::Finalize { reply, .. } => {
+                    let _ = reply.send(Ok(None));
+                    return;
+                }
+                // Dropping the session ends it.
+                StreamCmd::Cancel => return,
+            }
+        }
+    }
+
+    /// End a `gpt-live-transcribe` recording's live decode. `None` when no
+    /// live decode is open. The receiver gets the final transcript, or
+    /// closes with nothing when the decode wasn't a cloud one.
+    pub fn finish_cloud_stream(&self) -> Option<oneshot::Receiver<Result<String>>> {
+        let route = self.router.take()?;
+        let (reply, result) = oneshot::channel();
+        route.tx.send(StreamCmd::FinishCloud(reply)).ok()?;
+        Some(result)
     }
 
     /// Flush the live decode (a stream, or chunks decoded while recording)
@@ -1819,7 +1874,7 @@ fn drain_until_finalize(rx: mpsc::Receiver<StreamCmd>) {
                 let _ = reply.send(Ok(None));
                 break;
             }
-            StreamCmd::Cancel => break,
+            StreamCmd::FinishCloud(_) | StreamCmd::Cancel => break,
         }
     }
 }

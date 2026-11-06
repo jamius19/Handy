@@ -47,9 +47,18 @@ pub enum ModelSource {
 /// The OpenAI `gpt-transcribe` cloud model (see `openai_transcription.rs`).
 pub const OPENAI_CLOUD_MODEL_ID: &str = "openai-gpt-transcribe";
 
+/// The OpenAI `gpt-live-transcribe` cloud model, which transcribes while the
+/// recording goes (see `openai_live_transcription.rs`).
+pub const OPENAI_LIVE_CLOUD_MODEL_ID: &str = "openai-gpt-live-transcribe";
+
 /// Whether `model_id` names a cloud model rather than a local one.
 pub fn is_cloud_model(model_id: &str) -> bool {
-    model_id == OPENAI_CLOUD_MODEL_ID
+    model_id == OPENAI_CLOUD_MODEL_ID || is_live_cloud_model(model_id)
+}
+
+/// Whether `model_id` names the cloud model that streams while recording.
+pub fn is_live_cloud_model(model_id: &str) -> bool {
+    model_id == OPENAI_LIVE_CLOUD_MODEL_ID
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -939,6 +948,32 @@ impl ModelManager {
                 is_custom: false,
                 supports_streaming: false,
                 supports_language_detection: true,
+            },
+        );
+
+        // Streams while recording; it returns no detected language.
+        available_models.insert(
+            OPENAI_LIVE_CLOUD_MODEL_ID.to_string(),
+            ModelInfo {
+                id: OPENAI_LIVE_CLOUD_MODEL_ID.to_string(),
+                name: "OpenAI GPT-Live-Transcribe".to_string(),
+                description: "Transcribes in the cloud as you speak, with your OpenAI API key."
+                    .to_string(),
+                filename: String::new(),
+                source: ModelSource::Cloud,
+                size_mb: 0,
+                is_downloaded: true,
+                is_downloading: false,
+                partial_size: 0,
+                accuracy_score: 0.9,
+                speed_score: 0.95,
+                supports_translation: false,
+                is_recommended: false,
+                supported_languages: whisper_languages.clone(),
+                supports_language_selection: true,
+                is_custom: false,
+                supports_streaming: true,
+                supports_language_detection: false,
             },
         );
 
