@@ -710,6 +710,9 @@ jobs:
       - name: Audit Windows package runtime contents
         if: contains(inputs.platform, 'windows')
         shell: pwsh
+        # Via env: build-args can hold JSON quotes that break inline interpolation.
+        env:
+          BUILD_ARGS: ${{ inputs.build-args }}
         run: |
           $profile = "${{ steps.build-profile.outputs.profile }}"
           $target = "${{ inputs.target }}"
@@ -788,8 +791,13 @@ jobs:
           }
 
           # Administrative install extracts the MSI payload without elevation.
+          # Builds that pick bundles without msi (e.g. the fork's NSIS-only release) have no MSI to audit.
+          $msiRequested = -not ($env:BUILD_ARGS -match '--bundles' -and $env:BUILD_ARGS -notmatch '--bundles\s+\S*msi')
+          if (-not $msiRequested) {
+            Write-Host "Skipping MSI audit: build args do not request an MSI bundle"
+          }
           $msiPackages = Get-ChildItem (Join-Path $bundleBase "msi") -Filter "*.msi" -ErrorAction SilentlyContinue
-          if (-not $msiPackages) {
+          if (-not $msiPackages -and $msiRequested) {
             throw "No MSI packages found under $bundleBase for runtime DLL audit"
           }
 
