@@ -130,6 +130,20 @@ pub enum OpenAiServiceTier {
     Fast,
 }
 
+/// How long `gpt-live-transcribe` waits for more audio before it writes
+/// text: lower shows words sooner, higher is more accurate. Serialized as
+/// the API's own `delay` values.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq, Type)]
+#[serde(rename_all = "lowercase")]
+pub enum LiveTranscribeDelay {
+    Minimal,
+    Low,
+    #[default]
+    Medium,
+    High,
+    Xhigh,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct PostProcessProvider {
     pub id: String,
@@ -480,6 +494,9 @@ pub struct AppSettings {
     /// picked during onboarding. Empty until then.
     #[serde(default)]
     pub spoken_languages: Vec<String>,
+    /// Delay for the `gpt-live-transcribe` cloud model; other models ignore it.
+    #[serde(default)]
+    pub openai_live_transcribe_delay: LiveTranscribeDelay,
     #[serde(default = "default_overlay_position")]
     pub overlay_position: OverlayPosition,
     #[serde(default = "default_debug_mode")]
@@ -1046,6 +1063,7 @@ pub fn get_default_settings() -> AppSettings {
         onboarding_completed: false,
         always_on_microphone: false,
         spoken_languages: Vec::new(),
+        openai_live_transcribe_delay: LiveTranscribeDelay::default(),
         selected_microphone: None,
         selected_channel: None,
         clamshell_microphone: None,

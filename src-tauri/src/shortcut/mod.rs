@@ -23,9 +23,9 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::settings::APPLE_INTELLIGENCE_DEFAULT_MODEL_ID;
 use crate::settings::{
     self, get_settings, AutoSubmitKey, ChineseScript, ClipboardHandling, KeyboardImplementation,
-    LLMPrompt, LanguageDetectionMode, OpenAiServiceTier, OverlayPosition, OverlayStyle,
-    PasteMethod, ReasoningLevel, ShortcutActivation, ShortcutBinding, SoundTheme, Theme,
-    TypingTool, VadBackend, APPLE_INTELLIGENCE_PROVIDER_ID,
+    LLMPrompt, LanguageDetectionMode, LiveTranscribeDelay, OpenAiServiceTier, OverlayPosition,
+    OverlayStyle, PasteMethod, ReasoningLevel, ShortcutActivation, ShortcutBinding, SoundTheme,
+    Theme, TypingTool, VadBackend, APPLE_INTELLIGENCE_PROVIDER_ID,
 };
 use crate::tray;
 
@@ -1256,6 +1256,18 @@ pub fn change_post_process_openai_service_tier_setting(
 ) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     settings.post_process_openai_service_tier = tier;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_openai_live_transcribe_delay_setting(
+    app: AppHandle,
+    delay: LiveTranscribeDelay,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.openai_live_transcribe_delay = delay;
     settings::write_settings(&app, settings);
     Ok(())
 }

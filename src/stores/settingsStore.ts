@@ -7,6 +7,7 @@ import type {
   PostProcessApiFormat,
   ReasoningLevel,
   OpenAiServiceTier,
+  LiveTranscribeDelay,
   ChineseScript,
   TranscribeAcceleratorSetting,
   ShortcutActivation,
@@ -175,6 +176,10 @@ const settingUpdaters: {
   post_process_openai_service_tier: (value) =>
     commands.changePostProcessOpenaiServiceTierSetting(
       value as OpenAiServiceTier,
+    ),
+  openai_live_transcribe_delay: (value) =>
+    commands.changeOpenaiLiveTranscribeDelaySetting(
+      value as LiveTranscribeDelay,
     ),
   mute_while_recording: (value) =>
     commands.changeMuteWhileRecordingSetting(value as boolean),

@@ -27,9 +27,6 @@ const REALTIME_URL: &str = "wss://api.openai.com/v1/realtime?intent=transcriptio
 const MODEL: &str = "gpt-live-transcribe";
 /// The input rate OpenAI's Realtime examples use; Handy records at 16 kHz.
 const INPUT_RATE: u32 = 24_000;
-/// How long the model waits for context before it writes text: "medium"
-/// balances early partial text against accuracy.
-const DELAY: &str = "medium";
 /// How long the final transcript may take once the recording stops.
 const FINISH_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -127,7 +124,9 @@ async fn run(
     );
     let (mut sink, mut events) = socket.split();
 
-    let mut transcription = json!({ "model": MODEL, "delay": DELAY });
+    // Serializes as the API's own value, e.g. "medium".
+    let delay = settings.openai_live_transcribe_delay;
+    let mut transcription = json!({ "model": MODEL, "delay": delay });
     if !languages.is_empty() {
         transcription["languages"] = json!(languages);
     }
@@ -193,8 +192,9 @@ async fn run(
                     "conversation.item.input_audio_transcription.completed" if ours => {
                         if let Some(finished_at) = finished_at {
                             info!(
-                                "OpenAI live transcription finished {:.2}s after the recording stopped",
-                                finished_at.elapsed().as_secs_f64()
+                                "OpenAI live transcription finished {:.2}s after the recording stopped (delay {:?})",
+                                finished_at.elapsed().as_secs_f64(),
+                                delay
                             );
                         }
                         return Ok(Some(event.transcript.unwrap_or_default()));
