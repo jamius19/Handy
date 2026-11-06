@@ -5,8 +5,10 @@ use rusqlite::{params, Connection, OptionalExtension};
 use rusqlite_migration::{MigrationDefinitionError, Migrations, M};
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
+use std::time::Duration;
 use tauri::AppHandle;
 use tauri_specta::Event;
 
@@ -39,10 +41,24 @@ static MIGRATIONS: &[M] = &[
 /// [`HistoryManager::apply_migrations`].
 const ADDED_COLUMNS: &[&str] = &["source_name", "language", "language_source"];
 
+/// Post-processing times kept per provider and model; older ones are
+/// deleted as new ones come in, so the P90 follows recent behaviour.
+const LATENCY_SAMPLES_KEPT: i64 = 100;
+
 /// Every column a [`HistoryEntry`] is read from.
 const ENTRY_COLUMNS: &str = "id, file_name, timestamp, saved, title, transcription_text, \
     post_processed_text, post_process_prompt, post_process_requested, source_name, language, \
     language_source";
+
+/// P90 post-processing time for one provider and model, over its last
+/// [`LATENCY_SAMPLES_KEPT`] successful runs.
+#[derive(Clone, Debug, Serialize, Deserialize, Type)]
+pub struct PostProcessLatency {
+    pub provider_id: String,
+    pub model: String,
+    pub p90_ms: u32,
+    pub samples: u32,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, Type)]
 pub struct PaginatedHistory {
@@ -183,6 +199,19 @@ impl HistoryManager {
             }
         }
 
+        // A new table, kept out of MIGRATIONS for the same reason.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS post_process_latency (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider_id TEXT NOT NULL,
+                model TEXT NOT NULL,
+                duration_ms INTEGER NOT NULL,
+                timestamp INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_post_process_latency_model
+                ON post_process_latency (provider_id, model, id);",
+        )?;
+
         Ok(())
     }
 
@@ -309,6 +338,87 @@ impl HistoryManager {
         self.cleanup_old_entries()?;
 
         Ok(entry)
+    }
+
+    /// Keep how long a successful post-processing run took, dropping that
+    /// provider and model's samples beyond the newest [`LATENCY_SAMPLES_KEPT`].
+    pub fn record_post_process_latency(
+        &self,
+        provider_id: &str,
+        model: &str,
+        duration: Duration,
+    ) -> Result<()> {
+        Self::record_post_process_latency_with_conn(
+            &self.get_connection()?,
+            provider_id,
+            model,
+            duration,
+        )
+    }
+
+    fn record_post_process_latency_with_conn(
+        conn: &Connection,
+        provider_id: &str,
+        model: &str,
+        duration: Duration,
+    ) -> Result<()> {
+        let duration_ms = i64::try_from(duration.as_millis()).unwrap_or(i64::MAX);
+        conn.execute(
+            "INSERT INTO post_process_latency (provider_id, model, duration_ms, timestamp)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![provider_id, model, duration_ms, Utc::now().timestamp()],
+        )?;
+        conn.execute(
+            "DELETE FROM post_process_latency
+             WHERE provider_id = ?1 AND model = ?2 AND id NOT IN (
+                 SELECT id FROM post_process_latency
+                 WHERE provider_id = ?1 AND model = ?2
+                 ORDER BY id DESC LIMIT ?3
+             )",
+            params![provider_id, model, LATENCY_SAMPLES_KEPT],
+        )?;
+        Ok(())
+    }
+
+    /// P90 post-processing time for every provider and model with samples.
+    pub fn get_post_process_latencies(&self) -> Result<Vec<PostProcessLatency>> {
+        Self::get_post_process_latencies_with_conn(&self.get_connection()?)
+    }
+
+    fn get_post_process_latencies_with_conn(conn: &Connection) -> Result<Vec<PostProcessLatency>> {
+        let mut stmt =
+            conn.prepare("SELECT provider_id, model, duration_ms FROM post_process_latency")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })?;
+
+        let mut samples: BTreeMap<(String, String), Vec<u32>> = BTreeMap::new();
+        for row in rows {
+            let (provider_id, model, duration_ms) = row?;
+            samples
+                .entry((provider_id, model))
+                .or_default()
+                .push(u32::try_from(duration_ms).unwrap_or(u32::MAX));
+        }
+
+        Ok(samples
+            .into_iter()
+            .map(|((provider_id, model), mut durations)| {
+                durations.sort_unstable();
+                // Nearest rank: the time that 90% of runs matched or beat.
+                let rank = (durations.len() * 9).div_ceil(10);
+                PostProcessLatency {
+                    provider_id,
+                    model,
+                    p90_ms: durations[rank - 1],
+                    samples: durations.len() as u32,
+                }
+            })
+            .collect())
     }
 
     /// Save the entry for a file whose audio is already at `file_name`.

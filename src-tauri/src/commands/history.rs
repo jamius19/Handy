@@ -1,5 +1,5 @@
 use crate::managers::{
-    history::{HistoryEntry, HistoryManager, PaginatedHistory},
+    history::{HistoryEntry, HistoryManager, PaginatedHistory, PostProcessLatency},
     transcription_jobs::TranscriptionJobManager,
 };
 use std::path::PathBuf;
@@ -17,6 +17,16 @@ pub async fn get_history_entries(
     history_manager
         .get_history_entries(cursor, limit)
         .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_post_process_latencies(
+    history_manager: State<'_, Arc<HistoryManager>>,
+) -> Result<Vec<PostProcessLatency>, String> {
+    history_manager
+        .get_post_process_latencies()
         .map_err(|e| e.to_string())
 }
 

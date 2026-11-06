@@ -10,7 +10,9 @@ use crate::managers::transcription::StreamWorkKind;
 use crate::managers::transcription::{Transcription, TranscriptionManager};
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
 use crate::openai_transcription;
-use crate::settings::{get_settings, AppSettings, OverlayStyle, APPLE_INTELLIGENCE_PROVIDER_ID};
+use crate::settings::{
+    get_settings, AppSettings, OverlayStyle, PostProcessProvider, APPLE_INTELLIGENCE_PROVIDER_ID,
+};
 use crate::shortcut;
 use crate::tray::{set_tray_state, TrayIconState};
 use crate::utils::{
@@ -110,6 +112,13 @@ struct TranscribeAction {
     post_process: bool,
 }
 
+/// Open the post-processing provider's connection ahead of its request.
+fn warm_up_post_process_connection(app: &AppHandle) {
+    if let Some(provider) = get_settings(app).active_post_process_provider() {
+        crate::llm_client::warm_up_connection(provider);
+    }
+}
+
 /// Field name for structured output JSON schema
 const TRANSCRIPTION_FIELD: &str = "transcription";
 
@@ -203,9 +212,12 @@ enum PostProcessOutcome {
     Failed,
 }
 
+/// `structured_error` gets the error of a structured request that failed
+/// before the plain request that followed it.
 async fn post_process_transcription(
     settings: &AppSettings,
     transcription: &str,
+    structured_error: &mut Option<String>,
 ) -> PostProcessOutcome {
     if is_blank_transcription(transcription) {
         debug!("Post-processing skipped because the transcription is empty");
@@ -397,6 +409,7 @@ async fn post_process_transcription(
                     "Structured output failed for provider '{}': {}. Falling back to legacy mode.",
                     provider.id, e
                 );
+                *structured_error = Some(e);
                 // Fall through to legacy mode below
             }
         }
@@ -447,6 +460,41 @@ pub(crate) struct ProcessedTranscription {
     pub post_process_prompt: Option<String>,
     /// `final_text` is the bare transcript because post-processing failed.
     pub post_process_failed: bool,
+    /// Post-processing worked, but not as set up: the notice code and its
+    /// detail, for the caller to raise under its own source.
+    pub post_process_warning: Option<(NoticeCode, String)>,
+}
+
+/// The selected post-processing provider and its model.
+fn active_post_process_target(settings: &AppSettings) -> Option<(&PostProcessProvider, &str)> {
+    let provider = settings.active_post_process_provider()?;
+    let model = settings
+        .post_process_models
+        .get(&provider.id)
+        .map(String::as_str)
+        .unwrap_or_default();
+    Some((provider, model))
+}
+
+/// Keep how long a successful post-processing run took, for the P90 shown in
+/// settings. Keyed by the model name as typed, so a variant such as an
+/// OpenRouter `:nitro` model counts on its own.
+fn record_post_process_latency(
+    app: &AppHandle,
+    provider: &PostProcessProvider,
+    model: &str,
+    elapsed: Duration,
+) {
+    debug!(
+        "Post-processing with '{}' (model: {}) took {:.2?}",
+        provider.id, model, elapsed
+    );
+    if let Err(e) = app
+        .state::<Arc<HistoryManager>>()
+        .record_post_process_latency(&provider.id, model, elapsed)
+    {
+        error!("Failed to record post-processing latency: {}", e);
+    }
 }
 
 pub(crate) async fn process_transcription_output(
@@ -459,14 +507,33 @@ pub(crate) async fn process_transcription_output(
     let mut post_processed_text: Option<String> = None;
     let mut post_process_prompt: Option<String> = None;
     let mut post_process_failed = false;
+    let mut post_process_warning = None;
 
     if post_process {
+        let target = active_post_process_target(&settings);
+        // Rejections are remembered until restart, so a new one is this run's.
+        let reasoning_rejected_before = target.is_some_and(|(provider, model)| {
+            crate::llm_client::reasoning_rejected(provider, model)
+        });
+        let mut structured_error = None;
+        let started = Instant::now();
         // A reply that's blank once cleaned is no better than none.
-        let outcome = match post_process_transcription(&settings, &final_text).await {
-            PostProcessOutcome::Done(text) => non_blank_post_processed_text(text)
-                .map_or(PostProcessOutcome::Failed, PostProcessOutcome::Done),
-            outcome => outcome,
-        };
+        let outcome =
+            match post_process_transcription(&settings, &final_text, &mut structured_error).await {
+                PostProcessOutcome::Done(text) => non_blank_post_processed_text(text)
+                    .map_or(PostProcessOutcome::Failed, PostProcessOutcome::Done),
+                outcome => outcome,
+            };
+        if let (PostProcessOutcome::Done(_), Some((provider, model))) = (&outcome, target) {
+            record_post_process_latency(app, provider, model, started.elapsed());
+            post_process_warning = if !reasoning_rejected_before
+                && crate::llm_client::reasoning_rejected(provider, model)
+            {
+                Some((NoticeCode::ReasoningRejected, model.to_string()))
+            } else {
+                structured_error.map(|e| (NoticeCode::StructuredOutputFailed, e))
+            };
+        }
         match outcome {
             PostProcessOutcome::Skipped => {}
             PostProcessOutcome::Failed => post_process_failed = true,
@@ -492,6 +559,7 @@ pub(crate) async fn process_transcription_output(
         post_processed_text,
         post_process_prompt,
         post_process_failed,
+        post_process_warning,
     }
 }
 
@@ -672,6 +740,11 @@ impl ShortcutAction for TranscribeAction {
             }
         }
 
+        // After capture starts, so it adds nothing to keypress->capture time.
+        if self.post_process {
+            warm_up_post_process_connection(app);
+        }
+
         debug!(
             "TranscribeAction::start completed in {:?}",
             start_time.elapsed()
@@ -718,6 +791,11 @@ impl ShortcutAction for TranscribeAction {
 
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
         let post_process = self.post_process;
+        // A recording longer than the warm-up's freshness has likely lost the
+        // connection opened at start; open another while transcription runs.
+        if post_process {
+            warm_up_post_process_connection(app);
+        }
         let selected_model = get_settings(app).selected_model;
         let cloud_transcription = is_cloud_model(&selected_model);
         let live_cloud_transcription = is_live_cloud_model(&selected_model);
@@ -904,6 +982,7 @@ impl ShortcutAction for TranscribeAction {
                                 let ah_clone = ah.clone();
                                 let paste_time = Instant::now();
                                 let post_process_failed = processed.post_process_failed;
+                                let post_process_warning = processed.post_process_warning;
                                 let rm_for_paste = Arc::clone(&rm);
                                 // Taken before the paste thread exists, and so
                                 // before the next session can start.
@@ -943,12 +1022,24 @@ impl ShortcutAction for TranscribeAction {
                                                             NoticeSource::Dictation,
                                                         );
                                                     }
-                                                    let notice = post_process_failed.then(|| {
-                                                        Notice::new(
-                                                            NoticeCode::PostProcessFailed,
-                                                            NoticeSource::Dictation,
-                                                        )
-                                                    });
+                                                    let notice = post_process_failed
+                                                        .then(|| {
+                                                            Notice::new(
+                                                                NoticeCode::PostProcessFailed,
+                                                                NoticeSource::Dictation,
+                                                            )
+                                                        })
+                                                        .or_else(|| {
+                                                            post_process_warning.map(
+                                                                |(code, detail)| {
+                                                                    Notice::new(
+                                                                        code,
+                                                                        NoticeSource::Dictation,
+                                                                    )
+                                                                    .with_detail(detail)
+                                                                },
+                                                            )
+                                                        });
                                                     (TranscriptionOutcome::Typed, notice)
                                                 }
                                                 Err(e) => {
@@ -1173,7 +1264,11 @@ mod tests {
     }
 
     fn run_post_process(settings: &AppSettings, transcription: &str) -> PostProcessOutcome {
-        tauri::async_runtime::block_on(post_process_transcription(settings, transcription))
+        tauri::async_runtime::block_on(post_process_transcription(
+            settings,
+            transcription,
+            &mut None,
+        ))
     }
 
     #[test]

@@ -653,6 +653,19 @@
       }
     },
     "postProcessing": {
+      "latency": {
+        "title": "Latency",
+        "description": "P90 post-processing time per provider and model, over each one's last 100 successful runs.",
+        "provider": "Provider",
+        "model": "Model",
+        "p90": "P90",
+        "requests": "Runs",
+        "requestCount_one": "{{count}} run",
+        "requestCount_other": "{{count}} runs",
+        "milliseconds": "{{value}} ms",
+        "seconds": "{{value}} s",
+        "empty": "No post-processing runs recorded yet."
+      },
       "hotkey": {
         "title": "Genvejstast"
       },
@@ -717,6 +730,12 @@
           "hide": "Hide",
           "invalidJson": "Not valid JSON.",
           "notObject": "Must be a JSON object, like { \"sort\": \"latency\" }."
+        },
+        "latency": {
+          "title": "P90 Latency",
+          "description": "How long post-processing took for 9 in 10 of the last 100 successful runs with this provider and model.",
+          "value": "{{latency}} ({{requests}})",
+          "noData": "No runs yet"
         }
       },
       "prompts": {
@@ -1002,6 +1021,10 @@
     "filePostProcessFailedTitle": "Transskriberet uden efterbehandling",
     "filePostProcessFailed": "Efterbehandlingen blev ikke færdig, så transskriptionen blev gemt, som den er.",
     "fileTranscriptionFailedTitle": "Transskription af fil mislykkedes",
+    "reasoningRejectedTitle": "Reasoning Setting Not Supported",
+    "reasoningRejected": "The model rejected the reasoning setting, so the request went without it and the model used its own default, which can be slower. Handy skips the setting for this model until it restarts.",
+    "structuredOutputFailedTitle": "Structured Output Failed",
+    "structuredOutputFailed": "The structured request failed, so a second, plain request was sent and Post Process took longer. If this keeps happening, the model may not support structured output.",
     "transcriptionFailedTitle": "Transskription mislykkedes"
   },
   "notices": {

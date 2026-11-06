@@ -5,7 +5,7 @@ use log::{debug, error, info, warn};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, REFERER, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::error::Error as StdError;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -121,10 +121,76 @@ fn is_known_rejected(key: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Whether `model` at this provider has rejected the reasoning fields since
+/// Handy started, so its requests now go without them.
+pub fn reasoning_rejected(provider: &PostProcessProvider, model: &str) -> bool {
+    is_known_rejected(&endpoint_key(provider, model))
+}
+
 fn remember_rejection(key: String) {
     if let Ok(mut set) = reasoning_rejections().lock() {
         set.insert(key);
     }
+}
+
+/// How long a warm-up counts as fresh. Below the shared pool's 30 s idle
+/// timeout, so the connection it opened is still pooled when this runs out.
+const WARM_UP_FRESH_FOR: Duration = Duration::from_secs(20);
+
+/// When each base URL was last warmed up.
+fn warm_ups() -> &'static Mutex<HashMap<String, Instant>> {
+    static WARM_UPS: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
+    WARM_UPS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Open a pooled connection to the provider before the post-processing
+/// request needs it, so that request skips the TCP + TLS handshake (usually
+/// 100-300 ms after the pool has dropped an idle connection). Sends an
+/// unauthenticated HEAD to the base URL in the background; its status
+/// doesn't matter. Does nothing if this base URL was warmed within
+/// [`WARM_UP_FRESH_FOR`], or isn't HTTP (Apple Intelligence).
+pub fn warm_up_connection(provider: &PostProcessProvider) {
+    let base_url = provider.base_url.trim_end_matches('/').to_string();
+    if !base_url.starts_with("http://") && !base_url.starts_with("https://") {
+        return;
+    }
+    {
+        let Ok(mut warmed) = warm_ups().lock() else {
+            return;
+        };
+        if warmed
+            .get(&base_url)
+            .is_some_and(|at| at.elapsed() < WARM_UP_FRESH_FOR)
+        {
+            return;
+        }
+        warmed.insert(base_url.clone(), Instant::now());
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let Ok(client) = shared_client() else {
+            return;
+        };
+        let started = Instant::now();
+        match client
+            .head(&base_url)
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+        {
+            Ok(response) => debug!(
+                "Warmed up connection to {} in {:.2?} (status {})",
+                sanitized_url(response.url()),
+                started.elapsed(),
+                response.status()
+            ),
+            Err(e) => debug!(
+                "Connection warm-up to {} failed: {}",
+                sanitized_url_for_log(&base_url),
+                e
+            ),
+        }
+    });
 }
 
 #[derive(Debug, Serialize)]

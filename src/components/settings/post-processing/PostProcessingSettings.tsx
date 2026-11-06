@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { ChevronRight, RefreshCcw } from "lucide-react";
+import type { TFunction } from "i18next";
 import {
   commands,
+  events,
   type OpenAiServiceTier,
   type PostProcessApiFormat,
+  type PostProcessLatency,
   type ReasoningLevel,
 } from "@/bindings";
 
@@ -31,6 +34,35 @@ const REASONING_LEVELS: ReasoningLevel[] = ["off", "low", "medium", "high"];
 const OPENAI_SERVICE_TIERS: OpenAiServiceTier[] = ["default", "fast"];
 const OPENROUTER_PROVIDER_PLACEHOLDER =
   '{ "order": ["anthropic"], "allow_fallbacks": false }';
+
+/** P90 times per provider and model, reloaded after each dictation. */
+const usePostProcessLatencies = (): PostProcessLatency[] => {
+  const [latencies, setLatencies] = useState<PostProcessLatency[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      const result = await commands.getPostProcessLatencies();
+      if (result.status === "ok") setLatencies(result.data);
+    };
+    load();
+    // A history entry is saved right after its post-processing time.
+    const unlisten = events.historyUpdatePayload.listen(() => {
+      load();
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  return latencies;
+};
+
+const formatLatency = (t: TFunction, ms: number): string =>
+  ms < 1000
+    ? t("settings.postProcessing.latency.milliseconds", { value: ms })
+    : t("settings.postProcessing.latency.seconds", {
+        value: (ms / 1000).toFixed(2),
+      });
 
 /** Empty or `null` clears the setting; anything else must be a JSON object. */
 const validateProviderRouting = (
@@ -124,6 +156,12 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
   const { t } = useTranslation();
   const state = usePostProcessProviderState();
   const { getSetting, updateSetting, isUpdating } = useSettings();
+  const latencies = usePostProcessLatencies();
+  const currentLatency = latencies.find(
+    (latency) =>
+      latency.provider_id === state.selectedProviderId &&
+      latency.model === state.model,
+  );
 
   return (
     <>
@@ -329,6 +367,25 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
       {state.selectedProviderId === "openrouter" && (
         <OpenRouterProviderRouting />
       )}
+
+      <SettingContainer
+        title={t("settings.postProcessing.api.latency.title")}
+        description={t("settings.postProcessing.api.latency.description")}
+        descriptionMode="tooltip"
+        layout="horizontal"
+        grouped={true}
+      >
+        <span className="text-sm tabular-nums">
+          {currentLatency
+            ? t("settings.postProcessing.api.latency.value", {
+                latency: formatLatency(t, currentLatency.p90_ms),
+                requests: t("settings.postProcessing.latency.requestCount", {
+                  count: currentLatency.samples,
+                }),
+              })
+            : t("settings.postProcessing.api.latency.noData")}
+        </span>
+      </SettingContainer>
     </>
   );
 };
@@ -604,6 +661,64 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
   );
 };
 
+const PostProcessingLatencyTable: React.FC = () => {
+  const { t } = useTranslation();
+  const { getSetting } = useSettings();
+  const latencies = usePostProcessLatencies();
+  const providers = getSetting("post_process_providers") ?? [];
+  const providerLabel = (id: string) =>
+    providers.find((provider) => provider.id === id)?.label ?? id;
+
+  if (latencies.length === 0) {
+    return (
+      <p className="px-4 py-3 text-sm text-ink-3">
+        {t("settings.postProcessing.latency.empty")}
+      </p>
+    );
+  }
+
+  return (
+    <div className="px-4 py-2 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-start text-xs text-ink-3">
+            <th className="py-1 pe-4 text-start font-medium">
+              {t("settings.postProcessing.latency.provider")}
+            </th>
+            <th className="py-1 pe-4 text-start font-medium">
+              {t("settings.postProcessing.latency.model")}
+            </th>
+            <th className="py-1 pe-4 text-end font-medium">
+              {t("settings.postProcessing.latency.p90")}
+            </th>
+            <th className="py-1 text-end font-medium">
+              {t("settings.postProcessing.latency.requests")}
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line">
+          {latencies.map((latency) => (
+            <tr key={`${latency.provider_id}/${latency.model}`}>
+              <td className="py-1.5 pe-4">
+                {providerLabel(latency.provider_id)}
+              </td>
+              <td className="py-1.5 pe-4 font-mono text-xs break-all">
+                {latency.model}
+              </td>
+              <td className="py-1.5 pe-4 text-end tabular-nums">
+                {formatLatency(t, latency.p90_ms)}
+              </td>
+              <td className="py-1.5 text-end tabular-nums">
+                {latency.samples}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 export const PostProcessingSettingsApi = React.memo(
   PostProcessingSettingsApiComponent,
 );
@@ -633,6 +748,13 @@ export const PostProcessingSettings: React.FC = () => {
 
       <SettingsGroup title={t("settings.postProcessing.prompts.title")}>
         <PostProcessingSettingsPrompts />
+      </SettingsGroup>
+
+      <SettingsGroup
+        title={t("settings.postProcessing.latency.title")}
+        description={t("settings.postProcessing.latency.description")}
+      >
+        <PostProcessingLatencyTable />
       </SettingsGroup>
     </div>
   );
