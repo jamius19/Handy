@@ -35,7 +35,7 @@ const OPENAI_SERVICE_TIERS: OpenAiServiceTier[] = ["default", "fast"];
 const OPENROUTER_PROVIDER_PLACEHOLDER =
   '{ "order": ["anthropic"], "allow_fallbacks": false }';
 
-/** P90 times per provider and model, reloaded after each dictation. */
+/** P75 and P90 times per provider and model, reloaded after each dictation. */
 const usePostProcessLatencies = (): PostProcessLatency[] => {
   const [latencies, setLatencies] = useState<PostProcessLatency[]>([]);
 
@@ -378,7 +378,8 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
         <span className="text-sm tabular-nums">
           {currentLatency
             ? t("settings.postProcessing.api.latency.value", {
-                latency: formatLatency(t, currentLatency.p90_ms),
+                p75: formatLatency(t, currentLatency.p75_ms),
+                p90: formatLatency(t, currentLatency.p90_ms),
                 requests: t("settings.postProcessing.latency.requestCount", {
                   count: currentLatency.samples,
                 }),
@@ -689,6 +690,9 @@ const PostProcessingLatencyTable: React.FC = () => {
               {t("settings.postProcessing.latency.model")}
             </th>
             <th className="py-1 pe-4 text-end font-medium">
+              {t("settings.postProcessing.latency.p75")}
+            </th>
+            <th className="py-1 pe-4 text-end font-medium">
               {t("settings.postProcessing.latency.p90")}
             </th>
             <th className="py-1 text-end font-medium">
@@ -704,6 +708,9 @@ const PostProcessingLatencyTable: React.FC = () => {
               </td>
               <td className="py-1.5 pe-4 font-mono text-xs break-all">
                 {latency.model}
+              </td>
+              <td className="py-1.5 pe-4 text-end tabular-nums">
+                {formatLatency(t, latency.p75_ms)}
               </td>
               <td className="py-1.5 pe-4 text-end tabular-nums">
                 {formatLatency(t, latency.p90_ms)}

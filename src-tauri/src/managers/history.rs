@@ -42,7 +42,7 @@ static MIGRATIONS: &[M] = &[
 const ADDED_COLUMNS: &[&str] = &["source_name", "language", "language_source"];
 
 /// Post-processing times kept per provider and model; older ones are
-/// deleted as new ones come in, so the P90 follows recent behaviour.
+/// deleted as new ones come in, so the P75 and P90 follow recent behaviour.
 const LATENCY_SAMPLES_KEPT: i64 = 100;
 
 /// Every column a [`HistoryEntry`] is read from.
@@ -50,12 +50,13 @@ const ENTRY_COLUMNS: &str = "id, file_name, timestamp, saved, title, transcripti
     post_processed_text, post_process_prompt, post_process_requested, source_name, language, \
     language_source";
 
-/// P90 post-processing time for one provider and model, over its last
+/// P75 and P90 post-processing times for one provider and model, over its last
 /// [`LATENCY_SAMPLES_KEPT`] successful runs.
 #[derive(Clone, Debug, Serialize, Deserialize, Type)]
 pub struct PostProcessLatency {
     pub provider_id: String,
     pub model: String,
+    pub p75_ms: u32,
     pub p90_ms: u32,
     pub samples: u32,
 }
@@ -380,7 +381,7 @@ impl HistoryManager {
         Ok(())
     }
 
-    /// P90 post-processing time for every provider and model with samples.
+    /// P75 and P90 post-processing times for every provider and model with samples.
     pub fn get_post_process_latencies(&self) -> Result<Vec<PostProcessLatency>> {
         Self::get_post_process_latencies_with_conn(&self.get_connection()?)
     }
@@ -409,12 +410,14 @@ impl HistoryManager {
             .into_iter()
             .map(|((provider_id, model), mut durations)| {
                 durations.sort_unstable();
-                // Nearest rank: the time that 90% of runs matched or beat.
-                let rank = (durations.len() * 9).div_ceil(10);
+                // Nearest rank: the time that `percent`% of runs matched or beat.
+                let nearest_rank =
+                    |percent: usize| durations[(durations.len() * percent).div_ceil(100) - 1];
                 PostProcessLatency {
                     provider_id,
                     model,
-                    p90_ms: durations[rank - 1],
+                    p75_ms: nearest_rank(75),
+                    p90_ms: nearest_rank(90),
                     samples: durations.len() as u32,
                 }
             })

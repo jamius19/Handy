@@ -1469,10 +1469,10 @@ export type PostProcessApiFormat =
  */
 "anthropic"
 /**
- * P90 post-processing time for one provider and model, over its last
+ * P75 and P90 post-processing times for one provider and model, over its last
  * [`LATENCY_SAMPLES_KEPT`] successful runs.
  */
-export type PostProcessLatency = { provider_id: string; model: string; p90_ms: number; samples: number }
+export type PostProcessLatency = { provider_id: string; model: string; p75_ms: number; p90_ms: number; samples: number }
 export type PostProcessProvider = { id: string; label: string; base_url: string; allow_base_url_edit?: boolean; models_endpoint?: string | null; supports_structured_output?: boolean; api_format?: PostProcessApiFormat }
 /**
  * How much a post-processing model may reason before it answers. Each
