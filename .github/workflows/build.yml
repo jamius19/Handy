@@ -47,6 +47,13 @@ on:
         required: false
         type: boolean
         default: false
+      # Trades some release-build polish for time: thin LTO, SPIRV-Headers
+      # from source instead of vcpkg, and no Linux pre-build unless an
+      # AppImage is bundled.
+      fast-release:
+        required: false
+        type: boolean
+        default: false
 
 env:
   TSC_VERSION: "0.9.0"
@@ -97,6 +104,15 @@ jobs:
             echo "profile=release" >> "$GITHUB_OUTPUT"
             echo "Build profile: release"
           fi
+
+      # Fat LTO with one codegen unit takes over 10 minutes for the final
+      # crate. The hot path is ggml's C++, which Rust LTO doesn't touch.
+      - name: Use thin LTO (fast release)
+        if: inputs.fast-release
+        shell: bash
+        run: |
+          echo "CARGO_PROFILE_RELEASE_LTO=thin" >> "$GITHUB_ENV"
+          echo "CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16" >> "$GITHUB_ENV"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -163,8 +179,11 @@ jobs:
           version: 1.4.309.0
           cache: true
 
+      # Nothing runs the signing CLI when the build args drop signCommand.
       - name: Cache trusted-signing-cli
-        if: contains(inputs.platform, 'windows') && inputs.sign-binaries
+        if: >-
+          contains(inputs.platform, 'windows') && inputs.sign-binaries
+          && !contains(inputs.build-args, '"signCommand":null')
         id: cache-tsc
         uses: actions/cache@v5
         with:
@@ -172,7 +191,10 @@ jobs:
           key: trusted-signing-cli-${{ env.TSC_VERSION }}-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install trusted-signing-cli
-        if: contains(inputs.platform, 'windows') && inputs.sign-binaries && steps.cache-tsc.outputs.cache-hit != 'true'
+        if: >-
+          contains(inputs.platform, 'windows') && inputs.sign-binaries
+          && !contains(inputs.build-args, '"signCommand":null')
+          && steps.cache-tsc.outputs.cache-hit != 'true'
         run: cargo install --locked --force trusted-signing-cli@${{ env.TSC_VERSION }}
 
       - name: Prepare Vulkan SDK for Ubuntu 24.04
@@ -370,12 +392,30 @@ jobs:
       # SPIRV-HeadersConfig.cmake is a CONFIG package, so plain CMAKE_PREFIX_PATH
       # resolves it with no vcpkg toolchain.
       - name: Install SPIRV-Headers for transcribe-cpp Vulkan build (Windows x64)
-        if: contains(inputs.platform, 'windows') && !contains(inputs.target, 'aarch64')
+        if: contains(inputs.platform, 'windows') && !contains(inputs.target, 'aarch64') && !inputs.fast-release
         shell: pwsh
         run: |
           vcpkg install spirv-headers:x64-windows
           if ($LASTEXITCODE -ne 0) { throw "vcpkg install spirv-headers failed" }
           $prefix = "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows" -replace '\\','/'
+          $combined = if ($env:CMAKE_PREFIX_PATH) { "$prefix;$env:CMAKE_PREFIX_PATH" } else { $prefix }
+          Add-Content $env:GITHUB_ENV "CMAKE_PREFIX_PATH=$combined"
+          Write-Host "CMAKE_PREFIX_PATH=$combined"
+
+      # Same CONFIG package as the vcpkg step, built from the tag matching the
+      # Vulkan SDK version above. A CMake install takes seconds; vcpkg minutes.
+      - name: Install SPIRV-Headers from source (Windows x64, fast release)
+        if: contains(inputs.platform, 'windows') && !contains(inputs.target, 'aarch64') && inputs.fast-release
+        shell: pwsh
+        run: |
+          $src = "$env:RUNNER_TEMP/SPIRV-Headers"
+          $prefix = "$env:RUNNER_TEMP/spirv-headers-install" -replace '\\','/'
+          git clone --depth 1 --branch vulkan-sdk-1.4.309.0 https://github.com/KhronosGroup/SPIRV-Headers $src
+          if ($LASTEXITCODE -ne 0) { throw "SPIRV-Headers clone failed" }
+          cmake -S $src -B "$src/build" -DSPIRV_HEADERS_ENABLE_TESTS=OFF
+          if ($LASTEXITCODE -ne 0) { throw "SPIRV-Headers configure failed" }
+          cmake --install "$src/build" --prefix $prefix
+          if ($LASTEXITCODE -ne 0) { throw "SPIRV-Headers install failed" }
           $combined = if ($env:CMAKE_PREFIX_PATH) { "$prefix;$env:CMAKE_PREFIX_PATH" } else { $prefix }
           Add-Content $env:GITHUB_ENV "CMAKE_PREFIX_PATH=$combined"
           Write-Host "CMAKE_PREFIX_PATH=$combined"
@@ -388,8 +428,10 @@ jobs:
       # libtranscribe.so (a NEEDED of `handy`) while bundling. tauri-action
       # reuses this compile incrementally. build.rs stages the runtime and
       # dlopen'd modules into transcribe-libs/, which tauri.conf.json includes.
+      # A fast release without an AppImage skips this: build.rs stages the libs
+      # before tauri_build runs, which is all the deb and rpm bundles need.
       - name: Pre-build and locate transcribe-cpp backend libs (Linux)
-        if: contains(inputs.platform, 'ubuntu')
+        if: contains(inputs.platform, 'ubuntu') && !(inputs.fast-release && !contains(inputs.build-args, 'appimage'))
         shell: bash
         run: |
           set -euo pipefail

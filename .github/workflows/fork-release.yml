@@ -76,4 +76,5 @@ jobs:
       upload-artifacts: false
       release-id: ${{ needs.create-release.outputs.release-id }}
       no-cache: true
+      fast-release: true
     secrets: inherit
