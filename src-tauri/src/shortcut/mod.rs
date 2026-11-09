@@ -1237,6 +1237,22 @@ pub fn change_post_process_openai_service_tier_setting(
     Ok(())
 }
 
+/// A provider routing setting as stored: empty or `null` clears it; anything
+/// else must be a JSON object.
+fn routing_setting(value: Option<String>) -> Result<Option<String>, String> {
+    let value = value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty() && value != "null");
+    if let Some(value) = &value {
+        let parsed: serde_json::Value =
+            serde_json::from_str(value).map_err(|e| format!("Invalid JSON: {}", e))?;
+        if !parsed.is_object() {
+            return Err("Provider routing must be a JSON object".to_string());
+        }
+    }
+    Ok(value)
+}
+
 /// Stores the OpenRouter `provider` routing object. Empty or `null` clears it;
 /// anything else must be a JSON object.
 #[tauri::command]
@@ -1245,19 +1261,24 @@ pub fn change_post_process_openrouter_provider_setting(
     app: AppHandle,
     provider: Option<String>,
 ) -> Result<(), String> {
-    let provider = provider
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty() && value != "null");
-    if let Some(value) = &provider {
-        let parsed: serde_json::Value =
-            serde_json::from_str(value).map_err(|e| format!("Invalid JSON: {}", e))?;
-        if !parsed.is_object() {
-            return Err("Provider routing must be a JSON object".to_string());
-        }
-    }
-
+    let provider = routing_setting(provider)?;
     let mut settings = settings::get_settings(&app);
     settings.post_process_openrouter_provider = provider;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+/// Stores the Vercel AI Gateway's `providerOptions.gateway` object. Empty or
+/// `null` clears it; anything else must be a JSON object.
+#[tauri::command]
+#[specta::specta]
+pub fn change_post_process_vercel_gateway_options_setting(
+    app: AppHandle,
+    options: Option<String>,
+) -> Result<(), String> {
+    let options = routing_setting(options)?;
+    let mut settings = settings::get_settings(&app);
+    settings.post_process_vercel_gateway_options = options;
     settings::write_settings(&app, settings);
     Ok(())
 }
@@ -1291,18 +1312,6 @@ pub async fn fetch_openrouter_transcription_models(app: AppHandle) -> Result<Vec
     crate::openrouter_transcription::fetch_models(&app)
         .await
         .map_err(|e| format!("{e:#}"))
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn change_vercel_ai_gateway_api_key_setting(
-    app: AppHandle,
-    api_key: String,
-) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-    settings.vercel_ai_gateway_api_key = settings::SecretString::new(api_key.trim().to_string());
-    settings::write_settings(&app, settings);
-    Ok(())
 }
 
 #[tauri::command]

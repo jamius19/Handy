@@ -526,9 +526,6 @@ pub struct AppSettings {
     /// OpenRouter cloud model transcribes with.
     #[serde(default = "default_openrouter_transcription_model")]
     pub openrouter_transcription_model: String,
-    /// The key both Vercel AI Gateway cloud models transcribe with.
-    #[serde(default)]
-    pub vercel_ai_gateway_api_key: SecretString,
     /// The AI Gateway model id (e.g. "openai/whisper-1") the Vercel AI
     /// Gateway cloud model transcribes with.
     #[serde(default = "default_vercel_transcription_model")]
@@ -581,6 +578,11 @@ pub struct AppSettings {
     /// `provider` field. Other providers ignore it.
     #[serde(default)]
     pub post_process_openrouter_provider: Option<String>,
+    /// JSON object sent as `providerOptions.gateway` in Vercel AI Gateway
+    /// requests, to order, filter or sort its providers; None sends none.
+    /// Other providers ignore it.
+    #[serde(default)]
+    pub post_process_vercel_gateway_options: Option<String>,
     #[serde(default = "default_post_process_prompts")]
     pub post_process_prompts: Vec<LLMPrompt>,
     #[serde(default)]
@@ -852,6 +854,15 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             api_format: PostProcessApiFormat::OpenAi,
         },
         PostProcessProvider {
+            id: "vercel_ai_gateway".to_string(),
+            label: "Vercel AI Gateway".to_string(),
+            base_url: "https://ai-gateway.vercel.sh/v1".to_string(),
+            allow_base_url_edit: false,
+            models_endpoint: Some("/models".to_string()),
+            supports_structured_output: true,
+            api_format: PostProcessApiFormat::OpenAi,
+        },
+        PostProcessProvider {
             id: "anthropic".to_string(),
             label: "Anthropic".to_string(),
             base_url: "https://api.anthropic.com/v1".to_string(),
@@ -1102,7 +1113,6 @@ pub fn get_default_settings() -> AppSettings {
         openai_live_transcribe_delay: LiveTranscribeDelay::default(),
         deepgram_api_key: SecretString::default(),
         openrouter_transcription_model: default_openrouter_transcription_model(),
-        vercel_ai_gateway_api_key: SecretString::default(),
         vercel_transcription_model: default_vercel_transcription_model(),
         vercel_live_transcription_model: default_vercel_live_transcription_model(),
         selected_microphone: None,
@@ -1131,6 +1141,7 @@ pub fn get_default_settings() -> AppSettings {
         post_process_reasoning: HashMap::new(),
         post_process_openai_service_tier: OpenAiServiceTier::Default,
         post_process_openrouter_provider: None,
+        post_process_vercel_gateway_options: None,
         post_process_prompts: default_post_process_prompts(),
         post_process_selected_prompt_id: None,
         mute_while_recording: false,
@@ -1173,6 +1184,16 @@ impl Default for AppSettings {
 pub const LANGUAGE_DETECTION_WINDOW_SECS: std::ops::RangeInclusive<u32> = 2..=30;
 
 impl AppSettings {
+    /// The provider routing setting of post-processing provider
+    /// `provider_id`, for the providers that have one.
+    pub fn post_process_routing(&self, provider_id: &str) -> Option<&str> {
+        match provider_id {
+            "openrouter" => self.post_process_openrouter_provider.as_deref(),
+            "vercel_ai_gateway" => self.post_process_vercel_gateway_options.as_deref(),
+            _ => None,
+        }
+    }
+
     /// Samples (16 kHz) of speech the language detector hears.
     pub fn language_detection_window_samples(&self) -> usize {
         let (min, max) = LANGUAGE_DETECTION_WINDOW_SECS.into_inner();

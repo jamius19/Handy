@@ -179,6 +179,10 @@ const settingUpdaters: {
     ),
   post_process_openrouter_provider: (value) =>
     commands.changePostProcessOpenrouterProviderSetting(value as string | null),
+  post_process_vercel_gateway_options: (value) =>
+    commands.changePostProcessVercelGatewayOptionsSetting(
+      value as string | null,
+    ),
   openai_live_transcribe_delay: (value) =>
     commands.changeOpenaiLiveTranscribeDelaySetting(
       value as LiveTranscribeDelay,
@@ -187,8 +191,6 @@ const settingUpdaters: {
     commands.changeDeepgramApiKeySetting(value as string),
   openrouter_transcription_model: (value) =>
     commands.changeOpenrouterTranscriptionModelSetting(value as string),
-  vercel_ai_gateway_api_key: (value) =>
-    commands.changeVercelAiGatewayApiKeySetting(value as string),
   vercel_transcription_model: (value) =>
     commands.changeVercelTranscriptionModelSetting(value as string),
   vercel_live_transcription_model: (value) =>

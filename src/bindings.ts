@@ -316,6 +316,18 @@ async changePostProcessOpenrouterProviderSetting(provider: string | null) : Prom
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Stores the Vercel AI Gateway's `providerOptions.gateway` object. Empty or
+ * `null` clears it; anything else must be a JSON object.
+ */
+async changePostProcessVercelGatewayOptionsSetting(options: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_post_process_vercel_gateway_options_setting", { options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async changeOpenaiLiveTranscribeDelaySetting(delay: LiveTranscribeDelay) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_openai_live_transcribe_delay_setting", { delay }) };
@@ -347,14 +359,6 @@ async changeOpenrouterTranscriptionModelSetting(model: string) : Promise<Result<
 async fetchOpenrouterTranscriptionModels() : Promise<Result<string[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_openrouter_transcription_models") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async changeVercelAiGatewayApiKeySetting(apiKey: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("change_vercel_ai_gateway_api_key_setting", { apiKey }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1247,10 +1251,6 @@ deepgram_api_key?: SecretString;
  */
 openrouter_transcription_model?: string; 
 /**
- * The key both Vercel AI Gateway cloud models transcribe with.
- */
-vercel_ai_gateway_api_key?: SecretString; 
-/**
  * The AI Gateway model id (e.g. "openai/whisper-1") the Vercel AI
  * Gateway cloud model transcribes with.
  */
@@ -1272,7 +1272,13 @@ post_process_openai_service_tier?: OpenAiServiceTier;
  * JSON object sent as `provider` in OpenRouter requests; None sends no
  * `provider` field. Other providers ignore it.
  */
-post_process_openrouter_provider?: string | null; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; experimental_enabled?: boolean; lazy_stream_close?: boolean; 
+post_process_openrouter_provider?: string | null; 
+/**
+ * JSON object sent as `providerOptions.gateway` in Vercel AI Gateway
+ * requests, to order, filter or sort its providers; None sends none.
+ * Other providers ignore it.
+ */
+post_process_vercel_gateway_options?: string | null; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; mute_while_recording?: boolean; append_trailing_space?: boolean; app_language?: string; theme?: Theme; experimental_enabled?: boolean; lazy_stream_close?: boolean; 
 /**
  * Experimental, macOS only: move a Bluetooth headset (AirPods) to this
  * Mac while recording, so its microphone does not return silence while

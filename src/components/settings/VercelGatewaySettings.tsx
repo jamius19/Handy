@@ -12,6 +12,9 @@ import { CloudModelPicker } from "./CloudModelPicker";
 import { useSettings } from "../../hooks/useSettings";
 import { VERCEL_LIVE_CLOUD_MODEL_ID } from "../shared/modelTable/tableModel";
 
+/** The provider whose key the gateway models use, shared with post-processing. */
+const VERCEL_PROVIDER = "vercel_ai_gateway";
+
 const fetchModels = () => commands.fetchVercelTranscriptionModels(false);
 const fetchStreamingModels = () =>
   commands.fetchVercelTranscriptionModels(true);
@@ -27,7 +30,8 @@ interface VercelGatewaySettingsProps {
 export const VercelGatewaySettings: React.FC<VercelGatewaySettingsProps> =
   React.memo(({ descriptionMode = "tooltip", grouped = false, modelId }) => {
     const { t } = useTranslation();
-    const { getSetting, updateSetting, isUpdating } = useSettings();
+    const { settings, updatePostProcessApiKey, isUpdating } = useSettings();
+    const apiKey = settings?.post_process_api_keys?.[VERCEL_PROVIDER] ?? "";
     const isLive = modelId === VERCEL_LIVE_CLOUD_MODEL_ID;
 
     return (
@@ -40,12 +44,12 @@ export const VercelGatewaySettings: React.FC<VercelGatewaySettingsProps> =
           grouped={grouped}
         >
           <ApiKeyField
-            value={getSetting("vercel_ai_gateway_api_key") ?? ""}
+            value={apiKey}
             onBlur={(value) =>
-              updateSetting("vercel_ai_gateway_api_key", value.trim())
+              updatePostProcessApiKey(VERCEL_PROVIDER, value.trim())
             }
             placeholder={t("settings.cloudModel.vercelApiKey.placeholder")}
-            disabled={isUpdating("vercel_ai_gateway_api_key")}
+            disabled={isUpdating(`post_process_api_key:${VERCEL_PROVIDER}`)}
             className="min-w-[320px]"
           />
         </SettingContainer>

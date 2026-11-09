@@ -359,7 +359,7 @@
       },
       "vercelApiKey": {
         "title": "AI Gateway API Key",
-        "description": "Your recordings are sent to Vercel AI Gateway to transcribe with the model you pick. Both Vercel AI Gateway models use this key.",
+        "description": "Your recordings are sent to Vercel AI Gateway to transcribe with the model you pick. Both Vercel AI Gateway models and the Vercel AI Gateway post-processing provider use this key.",
         "placeholder": "Paste your AI Gateway API key"
       },
       "vercelModel": {
@@ -767,6 +767,14 @@
           "hide": "Hide",
           "invalidJson": "Not valid JSON.",
           "notObject": "Must be a JSON object, like { \"sort\": \"latency\" }."
+        },
+        "vercelGatewayOptions": {
+          "title": "Provider Routing",
+          "description": "JSON object sent as the AI Gateway's providerOptions.gateway, to order, filter or sort providers. Leave empty to let the gateway choose.",
+          "show": "Show",
+          "hide": "Hide",
+          "invalidJson": "Not valid JSON.",
+          "notObject": "Must be a JSON object, like { \"sort\": \"ttft\" }."
         },
         "latency": {
           "title": "Latency",

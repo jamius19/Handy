@@ -34,6 +34,8 @@ pub(crate) const PROTOCOL_VERSION: &str = "0.0.1";
 pub(crate) const SPECIFICATION_VERSION: &str = "4";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 const MODELS_TIMEOUT: Duration = Duration::from_secs(30);
+/// The post-processing provider whose API key is reused.
+const VERCEL_PROVIDER_ID: &str = "vercel_ai_gateway";
 
 #[derive(Deserialize)]
 struct TranscriptionResponse {
@@ -54,13 +56,14 @@ struct ModelEntry {
     tags: Option<Vec<String>>,
 }
 
-/// The AI Gateway API key.
+/// The AI Gateway API key, shared with the Vercel AI Gateway post-processing
+/// provider.
 pub(crate) fn api_key(settings: &AppSettings) -> Result<String> {
     let api_key = settings
-        .vercel_ai_gateway_api_key
-        .expose()
-        .trim()
-        .to_string();
+        .post_process_api_keys
+        .get(VERCEL_PROVIDER_ID)
+        .map(|key| key.trim().to_string())
+        .unwrap_or_default();
     if api_key.is_empty() {
         return Err(anyhow!(
             "No AI Gateway API key is set. Add one in the model's settings."

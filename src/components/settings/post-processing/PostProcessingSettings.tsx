@@ -33,6 +33,8 @@ const REASONING_LEVELS: ReasoningLevel[] = ["off", "low", "medium", "high"];
 const OPENAI_SERVICE_TIERS: OpenAiServiceTier[] = ["default", "fast"];
 const OPENROUTER_PROVIDER_PLACEHOLDER =
   '{ "order": ["anthropic"], "allow_fallbacks": false }';
+const VERCEL_GATEWAY_OPTIONS_PLACEHOLDER =
+  '{ "order": ["bedrock", "anthropic"] }';
 
 /** P75 and P90 times per provider and model, reloaded after each dictation. */
 const usePostProcessLatencies = (): PostProcessLatency[] => {
@@ -81,10 +83,24 @@ const validateProviderRouting = (
   }
 };
 
-const OpenRouterProviderRouting: React.FC = () => {
+interface ProviderRoutingProps {
+  setting:
+    | "post_process_openrouter_provider"
+    | "post_process_vercel_gateway_options";
+  /** Holds `title`, `description`, `show`, `hide` and the error texts. */
+  textKey: string;
+  placeholder: string;
+}
+
+/** A provider's routing object, edited as JSON. */
+const ProviderRouting: React.FC<ProviderRoutingProps> = ({
+  setting,
+  textKey,
+  placeholder,
+}) => {
   const { t } = useTranslation();
   const { getSetting, updateSetting, isUpdating } = useSettings();
-  const stored = getSetting("post_process_openrouter_provider") ?? null;
+  const stored = getSetting(setting) ?? null;
   const [isExpanded, setIsExpanded] = useState(false);
   const [draft, setDraft] = useState(stored ?? "");
 
@@ -99,17 +115,15 @@ const OpenRouterProviderRouting: React.FC = () => {
     const trimmed = draft.trim();
     const value = trimmed === "" || trimmed === "null" ? null : trimmed;
     if (value !== stored) {
-      updateSetting("post_process_openrouter_provider", value);
+      updateSetting(setting, value);
     }
   };
 
   return (
     <div>
       <SettingContainer
-        title={t("settings.postProcessing.api.openrouterProvider.title")}
-        description={t(
-          "settings.postProcessing.api.openrouterProvider.description",
-        )}
+        title={t(`${textKey}.title`)}
+        description={t(`${textKey}.description`)}
         descriptionMode="tooltip"
         layout="horizontal"
         grouped={true}
@@ -124,9 +138,7 @@ const OpenRouterProviderRouting: React.FC = () => {
           <ChevronRight
             className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
           />
-          {isExpanded
-            ? t("settings.postProcessing.api.openrouterProvider.hide")
-            : t("settings.postProcessing.api.openrouterProvider.show")}
+          {isExpanded ? t(`${textKey}.hide`) : t(`${textKey}.show`)}
         </Button>
       </SettingContainer>
       {isExpanded && (
@@ -135,15 +147,13 @@ const OpenRouterProviderRouting: React.FC = () => {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={handleBlur}
-            placeholder={OPENROUTER_PROVIDER_PLACEHOLDER}
-            disabled={isUpdating("post_process_openrouter_provider")}
+            placeholder={placeholder}
+            disabled={isUpdating(setting)}
             spellCheck={false}
             className={`font-mono ${error ? "border-error hover:border-error focus:border-error" : ""}`}
           />
           {error && (
-            <p className="text-xs text-error">
-              {t(`settings.postProcessing.api.openrouterProvider.${error}`)}
-            </p>
+            <p className="text-xs text-error">{t(`${textKey}.${error}`)}</p>
           )}
         </div>
       )}
@@ -364,7 +374,18 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
       )}
 
       {state.selectedProviderId === "openrouter" && (
-        <OpenRouterProviderRouting />
+        <ProviderRouting
+          setting="post_process_openrouter_provider"
+          textKey="settings.postProcessing.api.openrouterProvider"
+          placeholder={OPENROUTER_PROVIDER_PLACEHOLDER}
+        />
+      )}
+      {state.selectedProviderId === "vercel_ai_gateway" && (
+        <ProviderRouting
+          setting="post_process_vercel_gateway_options"
+          textKey="settings.postProcessing.api.vercelGatewayOptions"
+          placeholder={VERCEL_GATEWAY_OPTIONS_PLACEHOLDER}
+        />
       )}
 
       <SettingContainer

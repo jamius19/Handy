@@ -208,6 +208,8 @@ struct ChatCompletionRequest {
     service_tier: Option<&'static str>,
     #[serde(rename = "provider", skip_serializing_if = "Option::is_none")]
     provider_routing: Option<Value>,
+    #[serde(rename = "providerOptions", skip_serializing_if = "Option::is_none")]
+    provider_options: Option<Value>,
 }
 
 /// The `service_tier` to send, if any. Only OpenAI's own API knows its tiers.
@@ -221,9 +223,21 @@ fn service_tier_param(
     }
 }
 
+/// `routing` as a JSON object. The setting is checked when saved, so a parse
+/// failure here means the store was edited by hand; the request then goes out
+/// without it.
+fn routing_object(routing: Option<&str>, name: &str) -> Option<Value> {
+    let routing = routing?;
+    match serde_json::from_str::<Value>(routing) {
+        Ok(value) if value.is_object() => Some(value),
+        _ => {
+            warn!("Ignoring {name} provider routing setting: not a JSON object");
+            None
+        }
+    }
+}
+
 /// The `provider` routing object to send, if any. Only OpenRouter reads it.
-/// The setting is checked when saved, so a parse failure here means the
-/// store was edited by hand; the request then goes out without it.
 fn openrouter_provider_param(
     provider: &PostProcessProvider,
     routing: Option<&str>,
@@ -231,14 +245,16 @@ fn openrouter_provider_param(
     if provider.id != "openrouter" {
         return None;
     }
-    let routing = routing?;
-    match serde_json::from_str::<Value>(routing) {
-        Ok(value) if value.is_object() => Some(value),
-        _ => {
-            warn!("Ignoring OpenRouter provider routing setting: not a JSON object");
-            None
-        }
+    routing_object(routing, "OpenRouter")
+}
+
+/// The `providerOptions` to send, if any: the routing options under
+/// `gateway`. Only the Vercel AI Gateway reads them.
+fn gateway_options_param(provider: &PostProcessProvider, routing: Option<&str>) -> Option<Value> {
+    if provider.id != "vercel_ai_gateway" {
+        return None;
     }
+    routing_object(routing, "AI Gateway").map(|options| serde_json::json!({ "gateway": options }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -566,7 +582,7 @@ pub async fn send_chat_completion(
     prompt: String,
     reasoning: ReasoningLevel,
     service_tier: OpenAiServiceTier,
-    openrouter_provider: Option<&str>,
+    routing: Option<&str>,
 ) -> Result<Option<String>, String> {
     if provider.api_format == PostProcessApiFormat::Anthropic {
         return send_anthropic_message(provider, api_key, model, prompt, reasoning).await;
@@ -581,7 +597,7 @@ pub async fn send_chat_completion(
         None,
         reasoning,
         service_tier,
-        openrouter_provider,
+        routing,
     )
     .await
 }
@@ -606,7 +622,7 @@ pub async fn send_chat_completion_with_schema(
     json_schema: Option<Value>,
     reasoning: ReasoningLevel,
     service_tier: OpenAiServiceTier,
-    openrouter_provider: Option<&str>,
+    routing: Option<&str>,
 ) -> Result<Option<String>, String> {
     let base_url = provider.base_url.trim_end_matches('/');
     let url = format!("{}/chat/completions", base_url);
@@ -659,7 +675,8 @@ pub async fn send_chat_completion_with_schema(
         response_format,
         reasoning,
         service_tier: service_tier_param(provider, service_tier),
-        provider_routing: openrouter_provider_param(provider, openrouter_provider),
+        provider_routing: openrouter_provider_param(provider, routing),
+        provider_options: gateway_options_param(provider, routing),
     };
 
     let started = Instant::now();
@@ -939,20 +956,30 @@ const NON_TEXT_MODEL_MARKERS: &[&str] = &[
 ];
 
 /// Whether a listed model is a text LLM. A provider that describes its models'
-/// modalities (OpenRouter's `architecture`) is taken at its word; others, such
-/// as OpenAI, list only ids, so those are matched against known non-text
-/// families. A model filtered out by mistake can still be typed in by name.
+/// modalities (OpenRouter's `architecture`, the Vercel AI Gateway's
+/// `modalities`) is taken at its word; others, such as OpenAI, list only ids,
+/// so those are matched against known non-text families. A model filtered out
+/// by mistake can still be typed in by name.
 fn is_text_model(id: &str, entry: Option<&Value>) -> bool {
+    // `field` is "input" or "output".
     let modalities = |field: &str| {
         entry
-            .and_then(|e| e.get("architecture"))
-            .and_then(|a| a.get(field))
+            .and_then(|e| {
+                e.get("architecture")
+                    .and_then(|a| a.get(format!("{field}_modalities")))
+                    .or_else(|| e.get("modalities").and_then(|m| m.get(field)))
+            })
             .and_then(|m| m.as_array())
             .map(|m| m.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
     };
-    if let Some(output) = modalities("output_modalities") {
-        let input = modalities("input_modalities").unwrap_or_default();
-        return output.iter().all(|m| *m == "text") && input.contains(&"text");
+    if let Some(output) = modalities("output") {
+        let input = modalities("input").unwrap_or_default();
+        // The AI Gateway also names each model's kind: its embedding and
+        // reranking models take and return text too.
+        let kind = entry.and_then(|e| e.get("type")).and_then(Value::as_str);
+        return kind.is_none_or(|kind| kind == "language")
+            && output.iter().all(|m| *m == "text")
+            && input.contains(&"text");
     }
     let id = id.to_lowercase();
     !NON_TEXT_MODEL_MARKERS
@@ -1017,6 +1044,7 @@ mod tests {
             reasoning,
             service_tier: None,
             provider_routing: None,
+            provider_options: None,
         };
         serde_json::to_value(&request).unwrap()
     }
