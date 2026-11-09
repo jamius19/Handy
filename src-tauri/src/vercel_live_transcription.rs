@@ -43,6 +43,8 @@ const SUBPROTOCOL: &str = "ai-gateway-transcription.v1";
 const MAX_AUDIO_FRAME_BYTES: usize = 64 * 1024;
 /// How long the final transcript may take once the recording stops.
 const FINISH_TIMEOUT: Duration = Duration::from_secs(30);
+/// How long reconnecting a failed stream and sending its audio again may take.
+const RECONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// One server part. Only the fields Handy reads.
 #[derive(Deserialize)]
@@ -179,33 +181,54 @@ pub(crate) async fn run(
     let api_key = api_key(&settings)?;
     let request = Request::from_settings(&settings, true)?;
     let mut audio = Audio::for_model(&request.model);
+    let rate = audio.rate();
 
-    let (mut sink, mut events) = connect(&api_key, &request, audio.rate()).await?.split();
+    let (mut sink, mut events) = connect(&api_key, &request, rate).await?.split();
 
     let mut transcript = Transcript::default();
     // The text last sent to the overlay.
     let mut shown = String::new();
     let mut finished_at: Option<Instant> = None;
-    // Every sample sent, to send again to a new stream if this one fails.
-    let mut sent: Vec<i16> = Vec::new();
-    let mut retried = false;
+    // When the final transcript is overdue, once the recording has stopped.
+    let mut deadline: Option<Instant> = None;
+    // Every sample sent, to send again to a new stream if this one fails;
+    // `None` once that one retry is used.
+    let mut sent: Option<Vec<i16>> = Some(Vec::new());
     loop {
-        tokio::select! {
+        // Why the stream failed, when it did.
+        let failure = tokio::select! {
             command = commands.recv(), if reply.is_none() => match command {
                 Some(Command::Audio(pcm)) => {
                     let pcm = audio.convert(&pcm);
-                    send_audio(&mut sink, &pcm).await?;
-                    sent.extend_from_slice(&pcm);
+                    if let Some(sent) = &mut sent {
+                        sent.extend_from_slice(&pcm);
+                    }
+                    match send_audio(&mut sink, &pcm).await {
+                        Ok(()) => continue,
+                        Err(failure) => failure,
+                    }
                 }
                 Some(Command::Finish(result)) => {
                     let pcm = audio.flush();
-                    send_audio(&mut sink, &pcm).await?;
-                    sent.extend_from_slice(&pcm);
-                    // The server transcribes what it still holds, then sends
-                    // `finish` and closes.
-                    send(&mut sink, json!({ "type": "transcription-stream.audio-done" })).await?;
+                    if let Some(sent) = &mut sent {
+                        sent.extend_from_slice(&pcm);
+                    }
                     *reply = Some(result);
                     finished_at = Some(Instant::now());
+                    deadline = Some(Instant::now() + FINISH_TIMEOUT);
+                    // The server transcribes what it still holds, then sends
+                    // `finish` and closes.
+                    let done = match send_audio(&mut sink, &pcm).await {
+                        Ok(()) => {
+                            send(&mut sink, json!({ "type": "transcription-stream.audio-done" }))
+                                .await
+                        }
+                        Err(failure) => Err(failure),
+                    };
+                    match done {
+                        Ok(()) => continue,
+                        Err(failure) => failure,
+                    }
                 }
                 None => return Ok(None),
             },
@@ -229,85 +252,113 @@ pub(crate) async fn run(
                     Some(Err(e)) => Err(anyhow!(e).context("The AI Gateway stream failed")),
                     None => Err(anyhow!("The AI Gateway closed the stream")),
                 };
-                let part = match received {
-                    Ok(part) => part,
-                    Err(failure) => {
-                        // The provider sometimes fails a stream for no reason it gives;
-                        // a new one usually works, so retry once before giving up.
-                        if retried {
-                            return Err(failure);
+                match received {
+                    Err(failure) => failure,
+                    Ok(part) => {
+                        match part.kind.as_str() {
+                            "transcript-delta" => {
+                                transcript.push_delta(part.delta.as_deref().unwrap_or_default());
+                                let next = transcript.shown();
+                                if !only_trims(&shown, &next) {
+                                    shown = next;
+                                    on_text(&shown);
+                                }
+                            }
+                            "transcript-partial" => {
+                                transcript.push_partial(
+                                    part.text.unwrap_or_default(),
+                                    part.start_second,
+                                    part.duration_in_seconds,
+                                );
+                                let next = transcript.shown();
+                                if !only_trims(&shown, &next) {
+                                    shown = next;
+                                    on_text(&shown);
+                                }
+                            }
+                            "transcript-final" => {
+                                transcript.settle(part.text.as_deref().unwrap_or_default());
+                                shown = transcript.settled.clone();
+                                on_text(&shown);
+                            }
+                            "finish" => {
+                                if let Some(finished_at) = finished_at {
+                                    info!(
+                                        "AI Gateway live transcription finished {:.2}s after the recording stopped",
+                                        finished_at.elapsed().as_secs_f64()
+                                    );
+                                }
+                                // The whole transcript; the parts so far if it has none.
+                                let text = part.text.filter(|t| !t.trim().is_empty());
+                                return Ok(Some(LiveText {
+                                    text: text.unwrap_or_else(|| transcript.shown()),
+                                    language: part.language,
+                                }));
+                            }
+                            _ => {}
                         }
-                        retried = true;
-                        warn!(
-                            "AI Gateway live stream for {} failed ({failure:#}); reconnecting once \
-                             and resending {:.1}s of audio",
-                            request.model,
-                            sent.len() as f64 / audio.rate() as f64
-                        );
-                        (sink, events) = connect(&api_key, &request, audio.rate()).await?.split();
-                        send_audio(&mut sink, &sent).await?;
-                        if finished_at.is_some() {
-                            send(&mut sink, json!({ "type": "transcription-stream.audio-done" }))
-                                .await?;
-                        }
-                        // The new stream transcribes the recording from its start.
-                        transcript = Transcript::default();
-                        info!("AI Gateway live stream for {} reconnected", request.model);
                         continue;
                     }
-                };
-                match part.kind.as_str() {
-                    "transcript-delta" => {
-                        transcript.push_delta(part.delta.as_deref().unwrap_or_default());
-                        let next = transcript.shown();
-                        if !only_trims(&shown, &next) {
-                            shown = next;
-                            on_text(&shown);
-                        }
-                    }
-                    "transcript-partial" => {
-                        transcript.push_partial(
-                            part.text.unwrap_or_default(),
-                            part.start_second,
-                            part.duration_in_seconds,
-                        );
-                        let next = transcript.shown();
-                        if !only_trims(&shown, &next) {
-                            shown = next;
-                            on_text(&shown);
-                        }
-                    }
-                    "transcript-final" => {
-                        transcript.settle(part.text.as_deref().unwrap_or_default());
-                        shown = transcript.settled.clone();
-                        on_text(&shown);
-                    }
-                    "finish" => {
-                        if let Some(finished_at) = finished_at {
-                            info!(
-                                "AI Gateway live transcription finished {:.2}s after the recording stopped",
-                                finished_at.elapsed().as_secs_f64()
-                            );
-                        }
-                        // The whole transcript; the parts so far if it has none.
-                        let text = part.text.filter(|t| !t.trim().is_empty());
-                        return Ok(Some(LiveText {
-                            text: text.unwrap_or_else(|| transcript.shown()),
-                            language: part.language,
-                        }));
-                    }
-                    _ => {}
                 }
             }
             // Nobody waits for the result any more (the dictation was cancelled).
             _ = closed(reply) => return Ok(None),
-            _ = tokio::time::sleep_until(
-                finished_at.unwrap_or_else(Instant::now) + FINISH_TIMEOUT
-            ), if finished_at.is_some() => {
+            _ = tokio::time::sleep_until(deadline.unwrap_or_else(Instant::now)),
+                if deadline.is_some() =>
+            {
                 return Err(anyhow!("AI Gateway live transcription timed out"));
             }
+        };
+
+        // The provider sometimes fails a stream for no reason it gives; a new
+        // one usually works, so retry once before giving up.
+        let Some(resend) = sent.take() else {
+            return Err(failure);
+        };
+        warn!(
+            "AI Gateway live stream for {} failed ({failure:#}); reconnecting once and \
+             resending {:.1}s of audio",
+            request.model,
+            resend.len() as f64 / rate as f64
+        );
+        let stopped = finished_at.is_some();
+        (sink, events) = reconnect(&api_key, &request, rate, &resend, stopped)
+            .await?
+            .split();
+        // The new stream transcribes the recording from its start, and gets
+        // its own time for the final transcript.
+        transcript = Transcript::default();
+        if stopped {
+            deadline = Some(Instant::now() + FINISH_TIMEOUT);
         }
+        info!("AI Gateway live stream for {} reconnected", request.model);
     }
+}
+
+/// A new stream, sent `resend` and, once the recording has stopped,
+/// `audio-done`; bounded so a stuck reconnect can't hold up the dictation.
+async fn reconnect(
+    api_key: &str,
+    request: &Request,
+    rate: u32,
+    resend: &[i16],
+    stopped: bool,
+) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
+    let reconnecting = async {
+        let mut socket = connect(api_key, request, rate).await?;
+        send_audio(&mut socket, resend).await?;
+        if stopped {
+            send(
+                &mut socket,
+                json!({ "type": "transcription-stream.audio-done" }),
+            )
+            .await?;
+        }
+        Ok(socket)
+    };
+    tokio::time::timeout(RECONNECT_TIMEOUT, reconnecting)
+        .await
+        .map_err(|_| anyhow!("Reconnecting to the AI Gateway timed out"))?
 }
 
 /// Opens a stream to the gateway for `request`'s model and starts it.
