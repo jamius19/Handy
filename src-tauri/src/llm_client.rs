@@ -135,6 +135,44 @@ fn remember_rejection(key: String) {
     }
 }
 
+/// Endpoints (base_url|model) whose structured output failed while a plain
+/// request then worked. Remembered for the lifetime of the process so every
+/// dictation after that goes straight to a plain request.
+fn structured_failures() -> &'static Mutex<HashSet<String>> {
+    static FAILED: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    FAILED.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+/// Whether `model` at this provider has failed structured output since
+/// Handy started, so its requests now go as plain text.
+pub fn structured_output_failed(provider: &PostProcessProvider, model: &str) -> bool {
+    structured_failures()
+        .lock()
+        .map(|set| set.contains(&endpoint_key(provider, model)))
+        .unwrap_or(false)
+}
+
+/// Remembers that `model` at this provider can't do structured output.
+pub fn remember_structured_failure(provider: &PostProcessProvider, model: &str) {
+    if let Ok(mut set) = structured_failures().lock() {
+        set.insert(endpoint_key(provider, model));
+    }
+}
+
+/// How a chat completion error starts when the endpoint answered with an
+/// error status.
+const API_REQUEST_FAILED: &str = "API request failed with status";
+
+/// Whether `error`, from a chat completion, is the endpoint rejecting the
+/// request itself (400 or 422) rather than a network, key, rate-limit or
+/// server failure.
+pub fn is_rejected_request(error: &str) -> bool {
+    error
+        .strip_prefix(API_REQUEST_FAILED)
+        .map(str::trim_start)
+        .is_some_and(|rest| rest.starts_with("400") || rest.starts_with("422"))
+}
+
 /// How long a warm-up counts as fresh. Below the shared pool's 60 s idle
 /// timeout, so the connection it opened is still pooled when this runs out.
 const WARM_UP_FRESH_FOR: Duration = Duration::from_secs(20);
@@ -737,10 +775,7 @@ pub async fn send_chat_completion_with_schema(
             .text()
             .await
             .unwrap_or_else(|e| report_reqwest_error("Failed to read API error response", &e));
-        return Err(format!(
-            "API request failed with status {}: {}",
-            status, error_text
-        ));
+        return Err(format!("{API_REQUEST_FAILED} {}: {}", status, error_text));
     }
 
     let completion: ChatCompletionResponse = response
@@ -841,10 +876,7 @@ async fn send_anthropic_message(
             .text()
             .await
             .unwrap_or_else(|e| report_reqwest_error("Failed to read API error response", &e));
-        return Err(format!(
-            "API request failed with status {}: {}",
-            status, error_text
-        ));
+        return Err(format!("{API_REQUEST_FAILED} {}: {}", status, error_text));
     }
 
     let message: AnthropicMessagesResponse = response

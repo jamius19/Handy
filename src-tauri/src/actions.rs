@@ -19,7 +19,7 @@ use crate::utils::{
     self, show_processing_overlay, show_recording_overlay, show_transcribing_overlay,
 };
 use crate::TranscriptionCoordinator;
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -210,8 +210,8 @@ enum PostProcessOutcome {
     Failed,
 }
 
-/// `structured_error` gets the error of a structured request that failed
-/// before the plain request that followed it.
+/// `structured_error` gets the error of a structured request that failed, or
+/// why its reply was unusable, before the plain request that followed it.
 async fn post_process_transcription(
     settings: &AppSettings,
     transcription: &str,
@@ -293,7 +293,18 @@ async fn post_process_transcription(
         .copied()
         .unwrap_or_default();
 
-    if provider.supports_structured_output {
+    // Set when the structured request failed because of the model, so the
+    // plain request's success means the model can't do structured output.
+    let mut structured_unsupported = false;
+    let structured_known_failed = crate::llm_client::structured_output_failed(&provider, &model);
+    if structured_known_failed {
+        debug!(
+            "Skipping structured outputs for provider '{}' (model '{}'): they failed earlier",
+            provider.id, model
+        );
+    }
+
+    if provider.supports_structured_output && !structured_known_failed {
         debug!("Using structured outputs for provider '{}'", provider.id);
 
         let system_prompt = build_system_prompt(&prompt);
@@ -372,11 +383,16 @@ async fn post_process_transcription(
             Ok(Some(content)) => {
                 // Parse the JSON response to extract the transcription field
                 let content = strip_think_block(&content);
-                match serde_json::from_str::<serde_json::Value>(content) {
-                    Ok(json) => {
-                        if let Some(transcription_value) =
-                            json.get(TRANSCRIPTION_FIELD).and_then(|t| t.as_str())
-                        {
+                // A reply that isn't JSON, or has no text in the field, would
+                // paste the model's raw output (or nothing), so it's retried
+                // as plain text like a failed request.
+                let unusable = match serde_json::from_str::<serde_json::Value>(content) {
+                    Ok(json) => match json
+                        .get(TRANSCRIPTION_FIELD)
+                        .and_then(|t| t.as_str())
+                        .filter(|t| !t.trim().is_empty())
+                    {
+                        Some(transcription_value) => {
                             let result = strip_invisible_chars(transcription_value);
                             debug!(
                                 "Structured output post-processing succeeded for provider '{}'. Output length: {} chars",
@@ -384,19 +400,18 @@ async fn post_process_transcription(
                                 result.len()
                             );
                             return PostProcessOutcome::Done(result);
-                        } else {
-                            error!("Structured output response missing 'transcription' field");
-                            return PostProcessOutcome::Done(strip_invisible_chars(content));
                         }
-                    }
-                    Err(e) => {
-                        error!(
-                            "Failed to parse structured output JSON: {}. Returning raw content.",
-                            e
-                        );
-                        return PostProcessOutcome::Done(strip_invisible_chars(content));
-                    }
-                }
+                        None => format!("Reply had no '{TRANSCRIPTION_FIELD}' text"),
+                    },
+                    Err(e) => format!("Reply wasn't valid JSON: {e}"),
+                };
+                warn!(
+                    "Structured output from provider '{}' was unusable: {}. Falling back to legacy mode.",
+                    provider.id, unusable
+                );
+                *structured_error = Some(unusable);
+                structured_unsupported = true;
+                // Fall through to legacy mode below
             }
             Ok(None) => {
                 error!("LLM API response has no content");
@@ -407,6 +422,9 @@ async fn post_process_transcription(
                     "Structured output failed for provider '{}': {}. Falling back to legacy mode.",
                     provider.id, e
                 );
+                // A rejected request points at the model; network, key,
+                // rate-limit and server errors don't.
+                structured_unsupported = crate::llm_client::is_rejected_request(&e);
                 *structured_error = Some(e);
                 // Fall through to legacy mode below
             }
@@ -435,6 +453,14 @@ async fn post_process_transcription(
                 provider.id,
                 content.len()
             );
+            if structured_unsupported && !content.trim().is_empty() {
+                info!(
+                    "Plain request worked after structured output failed; provider '{}' (model '{}') \
+                     will skip structured outputs from now on",
+                    provider.id, model
+                );
+                crate::llm_client::remember_structured_failure(&provider, &model);
+            }
             PostProcessOutcome::Done(content)
         }
         Ok(None) => {

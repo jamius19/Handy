@@ -1069,7 +1069,7 @@
     "reasoningRejectedTitle": "Reasoning Setting Not Supported",
     "reasoningRejected": "The model rejected the reasoning setting, so the request went without it and the model used its own default, which can be slower. Handy skips the setting for this model until it restarts.",
     "structuredOutputFailedTitle": "Structured Output Failed",
-    "structuredOutputFailed": "The structured request failed, so a second, plain request was sent and Post Process took longer. If this keeps happening, the model may not support structured output.",
+    "structuredOutputFailed": "The structured request failed, so it was requested again as plain text. Post Process took longer and used two requests. If the model was at fault, Handy uses plain text for it until it restarts.",
     "transcriptionFailedTitle": "Transcription Failed"
   },
   "notices": {
