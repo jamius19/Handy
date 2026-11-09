@@ -183,6 +183,8 @@ const settingUpdaters: {
     commands.changeOpenaiLiveTranscribeDelaySetting(
       value as LiveTranscribeDelay,
     ),
+  deepgram_api_key: (value) =>
+    commands.changeDeepgramApiKeySetting(value as string),
   mute_while_recording: (value) =>
     commands.changeMuteWhileRecordingSetting(value as boolean),
   append_trailing_space: (value) =>

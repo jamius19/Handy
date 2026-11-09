@@ -8,7 +8,11 @@ mod catalog;
 mod chinese_script;
 pub mod cli;
 mod clipboard;
+mod cloud_live_transcription;
+mod cloud_transcription;
 mod commands;
+mod deepgram_live_transcription;
+mod deepgram_transcription;
 pub mod engine_supervisor;
 mod helpers;
 mod input;
@@ -727,6 +731,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_post_process_openai_service_tier_setting,
             shortcut::change_post_process_openrouter_provider_setting,
             shortcut::change_openai_live_transcribe_delay_setting,
+            shortcut::change_deepgram_api_key_setting,
             shortcut::set_post_process_provider,
             shortcut::fetch_post_process_models,
             shortcut::add_post_process_prompt,

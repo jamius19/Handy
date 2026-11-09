@@ -340,6 +340,11 @@
         "description": "Your recordings are sent to OpenAI to transcribe. The OpenAI post-processing provider uses the same key.",
         "placeholder": "sk-..."
       },
+      "deepgramApiKey": {
+        "title": "Deepgram API Key",
+        "description": "Your recordings are sent to Deepgram to transcribe with Nova-3.",
+        "placeholder": "Paste your Deepgram API key"
+      },
       "liveDelay": {
         "title": "Transcription Delay",
         "description": "How long GPT-Live-Transcribe waits for more speech before it writes text. Lower shows words sooner; higher is more accurate.",

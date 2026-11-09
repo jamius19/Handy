@@ -4,6 +4,7 @@ use crate::audio_toolkit::{
     remove_filler_words, OutputLanguageEvidence,
 };
 use crate::chinese_script::{convert_chinese_script, ChineseVariety};
+use crate::cloud_live_transcription::{LiveResult, LiveText, LiveTranscription};
 use crate::engine_supervisor::{
     CancelMark, DeviceInfo, DeviceSelector, EngineError, EngineSupervisor, LoadSpec, LoadedInfo,
     Unloading,
@@ -13,9 +14,10 @@ use crate::language_detection::{
     IdentifyError, LanguageDecision, LanguageDetector, LanguageSource, Plan,
 };
 use crate::managers::audio::{create_smoothed_detector, AudioRecordingManager};
-use crate::managers::model::{is_cloud_model, is_live_cloud_model, ModelManager};
+use crate::managers::model::{
+    cloud_provider, is_cloud_model, is_live_cloud_model, CloudProvider, ModelManager,
+};
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
-use crate::openai_live_transcription::{LiveResult, LiveTranscription};
 use crate::overlay;
 use crate::settings::{
     get_settings, AppSettings, ChineseScript, ModelUnloadTimeout, TranscribeAcceleratorSetting,
@@ -116,9 +118,9 @@ enum StreamCmd {
         reply: mpsc::Sender<StreamFinalizeReply>,
         samples: usize,
     },
-    /// End a `gpt-live-transcribe` stream; its final transcript goes to the
-    /// reply. A local decode drops the reply, so the recording goes to
-    /// `gpt-transcribe` instead.
+    /// End a streaming cloud model's stream; its final transcript goes to
+    /// the reply. A local decode drops the reply, so the recording goes to
+    /// the cloud model in one request instead.
     FinishCloud(LiveResult),
     Cancel,
 }
@@ -847,9 +849,12 @@ impl TranscriptionManager {
         };
 
         // A cloud model loads nothing to wait for.
-        if is_live_cloud_model(&get_settings(&self.app_handle).selected_model) {
-            self.run_cloud_stream(rx, &cancelled);
-            return;
+        let selected_model = get_settings(&self.app_handle).selected_model;
+        if is_live_cloud_model(&selected_model) {
+            if let Some(provider) = cloud_provider(&selected_model) {
+                self.run_cloud_stream(rx, &cancelled, provider, &selected_model);
+                return;
+            }
         }
 
         // Wait for any in-progress model load to finish (start_stream races the
@@ -921,15 +926,21 @@ impl TranscriptionManager {
         // worker's flags.
     }
 
-    /// The live decode of `gpt-live-transcribe`: audio goes to OpenAI as it
-    /// is recorded, and its text so far shows on the live overlay.
-    fn run_cloud_stream(&self, rx: mpsc::Receiver<StreamCmd>, cancelled: &AtomicBool) {
+    /// The live decode of a streaming cloud model: audio goes to its API as
+    /// it is recorded, and its text so far shows on the live overlay.
+    fn run_cloud_stream(
+        &self,
+        rx: mpsc::Receiver<StreamCmd>,
+        cancelled: &AtomicBool,
+        provider: CloudProvider,
+        model_id: &str,
+    ) {
         let app_handle = self.app_handle.clone();
-        let session = LiveTranscription::start(&self.app_handle, move |text| {
+        let session = LiveTranscription::start(&self.app_handle, provider, move |text| {
             emit_stream_text(&app_handle, text, "")
         });
         self.stream_active.store(true, Ordering::Release);
-        info!("Live cloud transcription started (gpt-live-transcribe)");
+        info!("Live cloud transcription started ({model_id})");
 
         while let Ok(cmd) = rx.recv() {
             match cmd {
@@ -954,10 +965,10 @@ impl TranscriptionManager {
         }
     }
 
-    /// End a `gpt-live-transcribe` recording's live decode. `None` when no
-    /// live decode is open. The receiver gets the final transcript, or
-    /// closes with nothing when the decode wasn't a cloud one.
-    pub fn finish_cloud_stream(&self) -> Option<oneshot::Receiver<Result<String>>> {
+    /// End a streaming cloud model's live decode. `None` when no live decode
+    /// is open. The receiver gets the final transcript, or closes with
+    /// nothing when the decode wasn't a cloud one.
+    pub fn finish_cloud_stream(&self) -> Option<oneshot::Receiver<Result<LiveText>>> {
         let route = self.router.take()?;
         let (reply, result) = oneshot::channel();
         route.tx.send(StreamCmd::FinishCloud(reply)).ok()?;

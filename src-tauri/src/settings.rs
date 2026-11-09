@@ -424,6 +424,28 @@ impl std::ops::DerefMut for SecretMap {
     }
 }
 
+/// An API key that `Debug` output never shows.
+#[derive(Clone, Default, Serialize, Deserialize, Type)]
+#[serde(transparent)]
+pub(crate) struct SecretString(String);
+
+impl fmt::Debug for SecretString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let shown = if self.0.is_empty() { "" } else { "[REDACTED]" };
+        shown.fmt(f)
+    }
+}
+
+impl SecretString {
+    pub(crate) fn new(value: String) -> Self {
+        Self(value)
+    }
+
+    pub(crate) fn expose(&self) -> &str {
+        &self.0
+    }
+}
+
 /* still handy for composing the initial JSON in the store ------------- */
 /// The container-level `serde(default)` (backed by the `Default` impl below)
 /// guarantees every field — including ones added in the future — falls back to
@@ -497,6 +519,9 @@ pub struct AppSettings {
     /// Delay for the `gpt-live-transcribe` cloud model; other models ignore it.
     #[serde(default)]
     pub openai_live_transcribe_delay: LiveTranscribeDelay,
+    /// The key the Deepgram Nova-3 cloud model transcribes with.
+    #[serde(default)]
+    pub deepgram_api_key: SecretString,
     #[serde(default = "default_overlay_position")]
     pub overlay_position: OverlayPosition,
     #[serde(default = "default_debug_mode")]
@@ -1068,6 +1093,7 @@ pub fn get_default_settings() -> AppSettings {
         always_on_microphone: false,
         spoken_languages: Vec::new(),
         openai_live_transcribe_delay: LiveTranscribeDelay::default(),
+        deepgram_api_key: SecretString::default(),
         selected_microphone: None,
         selected_channel: None,
         clamshell_microphone: None,

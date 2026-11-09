@@ -324,6 +324,14 @@ async changeOpenaiLiveTranscribeDelaySetting(delay: LiveTranscribeDelay) : Promi
     else return { status: "error", error: e  as any };
 }
 },
+async changeDeepgramApiKeySetting(apiKey: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_deepgram_api_key_setting", { apiKey }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async setPostProcessProvider(providerId: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("set_post_process_provider", { providerId }) };
@@ -1172,7 +1180,11 @@ spoken_languages?: string[];
 /**
  * Delay for the `gpt-live-transcribe` cloud model; other models ignore it.
  */
-openai_live_transcribe_delay?: LiveTranscribeDelay; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; 
+openai_live_transcribe_delay?: LiveTranscribeDelay; 
+/**
+ * The key the Deepgram Nova-3 cloud model transcribes with.
+ */
+deepgram_api_key?: SecretString; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; 
 /**
  * Reasoning level per provider id; a provider without one is Off.
  */
@@ -1511,6 +1523,10 @@ export type RecordingStateEvent = { phase: RecordingPhase }
  */
 export type RetiredModel = { id: string; name: string; size_mb: number; replacement_repo: string }
 export type SecretMap = Partial<{ [key in string]: string }>
+/**
+ * An API key that `Debug` output never shows.
+ */
+export type SecretString = string
 export type SecureInputStatus = { 
 /**
  * Secure input is currently enabled (live check)

@@ -11,10 +11,10 @@ use super::{
     Transcription, TranscriptionManager,
 };
 use crate::audio_toolkit::chunking::Chunker;
+use crate::cloud_transcription;
 use crate::engine_supervisor::EngineError;
 use crate::managers::audio::create_detector;
 use crate::managers::model::is_cloud_model;
-use crate::openai_transcription;
 use crate::settings::get_settings;
 
 /// Tries per chunk when a dictation's cancel interrupts it.
@@ -52,8 +52,9 @@ impl TranscriptionManager {
             }));
         }
 
-        if is_cloud_model(&get_settings(&self.app_handle).selected_model) {
-            return self.transcribe_in_cloud_chunks(audio, control, started);
+        let selected_model = get_settings(&self.app_handle).selected_model;
+        if is_cloud_model(&selected_model) {
+            return self.transcribe_in_cloud_chunks(&selected_model, audio, control, started);
         }
 
         self.touch_activity();
@@ -147,6 +148,7 @@ impl TranscriptionManager {
     /// paragraph per chunk, and none bigger than the API's upload limit.
     fn transcribe_in_cloud_chunks(
         &self,
+        model_id: &str,
         audio: Vec<f32>,
         control: &dyn ChunkControl,
         started: Instant,
@@ -174,7 +176,7 @@ impl TranscriptionManager {
                     return Ok(None);
                 }
                 let transcription = tauri::async_runtime::block_on(
-                    openai_transcription::transcribe(&self.app_handle, &chunk),
+                    cloud_transcription::transcribe(&self.app_handle, model_id, &chunk),
                 )?;
                 // The first chunk's language stands for the whole file.
                 language = language.or(transcription.language);

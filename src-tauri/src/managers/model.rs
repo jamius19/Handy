@@ -51,14 +51,35 @@ pub const OPENAI_CLOUD_MODEL_ID: &str = "openai-gpt-transcribe";
 /// recording goes (see `openai_live_transcription.rs`).
 pub const OPENAI_LIVE_CLOUD_MODEL_ID: &str = "openai-gpt-live-transcribe";
 
-/// Whether `model_id` names a cloud model rather than a local one.
-pub fn is_cloud_model(model_id: &str) -> bool {
-    model_id == OPENAI_CLOUD_MODEL_ID || is_live_cloud_model(model_id)
+/// The Deepgram `nova-3` cloud model, which streams while the recording goes
+/// (see `deepgram_live_transcription.rs`) and runs as a pre-recorded request
+/// otherwise (see `deepgram_transcription.rs`).
+pub const DEEPGRAM_NOVA3_MODEL_ID: &str = "deepgram-nova-3";
+
+/// The API a cloud model runs on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloudProvider {
+    OpenAi,
+    Deepgram,
 }
 
-/// Whether `model_id` names the cloud model that streams while recording.
+/// The API `model_id` runs on, or `None` for a local model.
+pub fn cloud_provider(model_id: &str) -> Option<CloudProvider> {
+    match model_id {
+        OPENAI_CLOUD_MODEL_ID | OPENAI_LIVE_CLOUD_MODEL_ID => Some(CloudProvider::OpenAi),
+        DEEPGRAM_NOVA3_MODEL_ID => Some(CloudProvider::Deepgram),
+        _ => None,
+    }
+}
+
+/// Whether `model_id` names a cloud model rather than a local one.
+pub fn is_cloud_model(model_id: &str) -> bool {
+    cloud_provider(model_id).is_some()
+}
+
+/// Whether `model_id` names a cloud model that streams while recording.
 pub fn is_live_cloud_model(model_id: &str) -> bool {
-    model_id == OPENAI_LIVE_CLOUD_MODEL_ID
+    model_id == OPENAI_LIVE_CLOUD_MODEL_ID || model_id == DEEPGRAM_NOVA3_MODEL_ID
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -974,6 +995,36 @@ impl ModelManager {
                 is_custom: false,
                 supports_streaming: true,
                 supports_language_detection: false,
+            },
+        );
+
+        // Streams while recording. With Auto it runs multilingual and reports
+        // the languages it heard.
+        available_models.insert(
+            DEEPGRAM_NOVA3_MODEL_ID.to_string(),
+            ModelInfo {
+                id: DEEPGRAM_NOVA3_MODEL_ID.to_string(),
+                name: "Deepgram Nova-3".to_string(),
+                description: "Transcribes in the cloud as you speak, with your Deepgram API key."
+                    .to_string(),
+                filename: String::new(),
+                source: ModelSource::Cloud,
+                size_mb: 0,
+                is_downloaded: true,
+                is_downloading: false,
+                partial_size: 0,
+                accuracy_score: 0.9,
+                speed_score: 0.95,
+                supports_translation: false,
+                is_recommended: false,
+                supported_languages: crate::deepgram_transcription::SUPPORTED_LANGUAGES
+                    .iter()
+                    .map(|code| code.to_string())
+                    .collect(),
+                supports_language_selection: true,
+                is_custom: false,
+                supports_streaming: true,
+                supports_language_detection: true,
             },
         );
 

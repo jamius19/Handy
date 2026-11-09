@@ -2,6 +2,7 @@
 use crate::apple_intelligence;
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
 use crate::audio_toolkit::VadPolicy;
+use crate::cloud_transcription;
 use crate::managers::audio::{recording_notice_code, AudioRecordingManager};
 use crate::managers::history::HistoryManager;
 use crate::managers::model::{is_cloud_model, is_live_cloud_model, ModelManager};
@@ -9,7 +10,6 @@ use crate::managers::transcription::policy::{live_decode, LiveDecode, ModelTrait
 use crate::managers::transcription::StreamWorkKind;
 use crate::managers::transcription::{Transcription, TranscriptionManager};
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
-use crate::openai_transcription;
 use crate::settings::{
     get_settings, AppSettings, OverlayStyle, PostProcessProvider, APPLE_INTELLIGENCE_PROVIDER_ID,
 };
@@ -620,7 +620,7 @@ impl ShortcutAction for TranscribeAction {
         // Use the app-facing model capability as the single pre-recording source
         // for live streaming decisions. Unknown support is represented as false
         // until the model registry is updated by discovery or runtime load.
-        // Of the cloud models only gpt-live-transcribe streams; gpt-transcribe
+        // gpt-live-transcribe and Deepgram Nova-3 stream; gpt-transcribe
         // transcribes the whole recording at the end.
         let model_supports_streaming = selected_model_info
             .as_ref()
@@ -852,7 +852,7 @@ impl ShortcutAction for TranscribeAction {
                     // as an error, so it never starts a batch run.
                     let transcription_time = Instant::now();
                     let transcription_result = if cloud_transcription {
-                        // gpt-live-transcribe has had the audio all along.
+                        // A streaming cloud model has had the audio all along.
                         // Otherwise drop a live decode left from a start with
                         // the local model, so it can't block the next
                         // start_stream.
@@ -863,7 +863,12 @@ impl ShortcutAction for TranscribeAction {
                             None
                         };
                         complete_unless_cancelled(
-                            openai_transcription::transcribe_recording(&ah, &samples, live),
+                            cloud_transcription::transcribe_recording(
+                                &ah,
+                                &selected_model,
+                                &samples,
+                                live,
+                            ),
                             || rm.was_cancelled_since(cancel_generation),
                         )
                         .await

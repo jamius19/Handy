@@ -7,17 +7,18 @@
 //! Realtime WebSocket session fed while the recording goes and committed
 //! when it stops, so only the last words are left to transcribe then.
 
+use crate::cloud_live_transcription::{closed, Command, LiveResult, LiveText};
 use crate::openai_transcription::{api_key, hints};
 use crate::settings::get_settings;
 use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use futures_util::{Sink, SinkExt, StreamExt};
-use log::{debug, info, warn};
+use log::{debug, info};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::time::Duration;
 use tauri::AppHandle;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::header::AUTHORIZATION;
@@ -29,59 +30,6 @@ const MODEL: &str = "gpt-live-transcribe";
 const INPUT_RATE: u32 = 24_000;
 /// How long the final transcript may take once the recording stops.
 const FINISH_TIMEOUT: Duration = Duration::from_secs(30);
-
-/// The final transcript, or why there is none.
-pub type LiveResult = oneshot::Sender<Result<String>>;
-
-enum Command {
-    Audio(Vec<f32>),
-    Finish(LiveResult),
-}
-
-/// One recording's live transcription. Dropping it ends the session unused.
-pub struct LiveTranscription {
-    commands: mpsc::UnboundedSender<Command>,
-}
-
-impl LiveTranscription {
-    /// Connects in the background; audio fed before the session is up waits
-    /// for it. `on_text` gets the transcript so far each time it grows.
-    pub fn start(app: &AppHandle, on_text: impl Fn(&str) + Send + 'static) -> Self {
-        let (commands, rx) = mpsc::unbounded_channel();
-        let app = app.clone();
-        tauri::async_runtime::spawn(async move {
-            let mut reply = None;
-            let result = run(&app, rx, &mut reply, on_text).await;
-            match (reply, result) {
-                (Some(reply), result) => {
-                    let _ = reply.send(result.and_then(|text| {
-                        text.ok_or_else(|| anyhow!("The live transcription was dropped"))
-                    }));
-                }
-                (None, Err(e)) => warn!("Live transcription ended early: {e:#}"),
-                (None, Ok(_)) => debug!("Live transcription cancelled"),
-            }
-        });
-        Self { commands }
-    }
-
-    /// Sends 16 kHz mono audio.
-    pub fn feed(&self, pcm: Vec<f32>) {
-        let _ = self.commands.send(Command::Audio(pcm));
-    }
-
-    /// Ends the recording's audio. `reply` gets the final transcript, or the
-    /// error that ended the session.
-    pub fn finish(self, reply: LiveResult) {
-        if let Err(mpsc::error::SendError(Command::Finish(reply))) =
-            self.commands.send(Command::Finish(reply))
-        {
-            let _ = reply.send(Err(anyhow!(
-                "The live transcription session had already ended"
-            )));
-        }
-    }
-}
 
 #[derive(Deserialize)]
 struct Event {
@@ -100,12 +48,12 @@ struct ErrorBody {
 
 /// The session: `Ok(None)` when it is dropped before it finishes. Once the
 /// recording stops, `reply` holds where its result goes.
-async fn run(
+pub(crate) async fn run(
     app: &AppHandle,
     mut commands: mpsc::UnboundedReceiver<Command>,
     reply: &mut Option<LiveResult>,
     on_text: impl Fn(&str),
-) -> Result<Option<String>> {
+) -> Result<Option<LiveText>> {
     let settings = get_settings(app);
     let api_key = api_key(&settings)?;
     let (languages, keywords) = hints(&settings);
@@ -197,7 +145,11 @@ async fn run(
                                 delay
                             );
                         }
-                        return Ok(Some(event.transcript.unwrap_or_default()));
+                        // gpt-live-transcribe reports no detected language.
+                        return Ok(Some(LiveText {
+                            text: event.transcript.unwrap_or_default(),
+                            language: None,
+                        }));
                     }
                     "conversation.item.input_audio_transcription.failed" if ours => {
                         return Err(anyhow!(
@@ -222,14 +174,6 @@ async fn run(
                 return Err(anyhow!("OpenAI live transcription timed out"));
             }
         }
-    }
-}
-
-/// Resolves once `reply`'s receiver is dropped; never while there is none.
-async fn closed(reply: &mut Option<LiveResult>) {
-    match reply {
-        Some(reply) => reply.closed().await,
-        None => std::future::pending().await,
     }
 }
 

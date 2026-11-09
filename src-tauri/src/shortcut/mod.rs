@@ -1287,6 +1287,15 @@ pub fn change_post_process_openrouter_provider_setting(
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_deepgram_api_key_setting(app: AppHandle, api_key: String) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.deepgram_api_key = settings::SecretString::new(api_key.trim().to_string());
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn change_openai_live_transcribe_delay_setting(
     app: AppHandle,
     delay: LiveTranscribeDelay,

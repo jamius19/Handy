@@ -4,8 +4,10 @@ import { SettingsGroup } from "../../ui/SettingsGroup";
 import { LanguageSelector } from "../LanguageSelector";
 import { TranslateToEnglish } from "../TranslateToEnglish";
 import { CloudApiKey } from "../CloudApiKey";
+import { DeepgramApiKey } from "../DeepgramApiKey";
 import { LiveTranscribeDelay } from "../LiveTranscribeDelay";
 import {
+  DEEPGRAM_MODEL_ID,
   isCloudModel,
   LIVE_CLOUD_MODEL_ID,
 } from "../../shared/modelTable/tableModel";
@@ -24,6 +26,8 @@ export const ModelSettingsCard: React.FC = () => {
   const isCloud = !!currentModelInfo && isCloudModel(currentModelInfo);
   // Only GPT-Live-Transcribe has a delay.
   const isLiveCloud = currentModelInfo?.id === LIVE_CLOUD_MODEL_ID;
+  // Deepgram has its own key; the OpenAI models share post-processing's.
+  const isDeepgram = currentModelInfo?.id === DEEPGRAM_MODEL_ID;
   const hasAnySettings = showLanguageSelector || supportsTranslation || isCloud;
 
   // Don't render anything if no model is selected or no settings available
@@ -37,7 +41,12 @@ export const ModelSettingsCard: React.FC = () => {
         model: currentModelInfo.name,
       })}
     >
-      {isCloud && <CloudApiKey descriptionMode="tooltip" grouped={true} />}
+      {isCloud &&
+        (isDeepgram ? (
+          <DeepgramApiKey descriptionMode="tooltip" grouped={true} />
+        ) : (
+          <CloudApiKey descriptionMode="tooltip" grouped={true} />
+        ))}
       {isLiveCloud && (
         <LiveTranscribeDelay descriptionMode="tooltip" grouped={true} />
       )}

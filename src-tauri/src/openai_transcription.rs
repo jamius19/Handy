@@ -8,19 +8,19 @@
 //! stands in for `gpt-live-transcribe` when that has no live result.
 
 use crate::audio_toolkit::OutputLanguageEvidence;
+use crate::cloud_live_transcription::LiveText;
 use crate::language_detection::{LanguageDecision, LanguageSource};
 use crate::llm_client::{report_reqwest_error, shared_client};
 use crate::managers::transcription::{post_process_transcription_text, Transcription};
 use crate::settings::{get_settings, AppSettings};
 use anyhow::{anyhow, Result};
 use hound::{WavSpec, WavWriter};
-use log::{info, warn};
+use log::info;
 use reqwest::multipart::{Form, Part};
 use serde::Deserialize;
 use std::io::Cursor;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
-use tokio::sync::oneshot;
 
 const TRANSCRIPTIONS_URL: &str = "https://api.openai.com/v1/audio/transcriptions";
 const MODEL: &str = "gpt-transcribe";
@@ -85,29 +85,11 @@ pub(crate) fn hints(settings: &AppSettings) -> (Vec<String>, Vec<String>) {
     (languages, keywords)
 }
 
-/// A dictation's transcription with a cloud model: `live`'s text when
-/// `gpt-live-transcribe` streamed the recording, else `samples` sent to
-/// `gpt-transcribe`.
-pub async fn transcribe_recording(
-    app: &AppHandle,
-    samples: &[f32],
-    live: Option<oneshot::Receiver<Result<String>>>,
-) -> Result<Transcription> {
-    if let Some(live) = live {
-        match live.await {
-            // A stream can miss what a run over the whole recording finds,
-            // so empty text retries in batch, as for a local stream.
-            Ok(Ok(text)) if !text.trim().is_empty() => {
-                let settings = get_settings(app);
-                let (languages, keywords) = hints(&settings);
-                return Ok(finish(text, None, &settings, &languages, &keywords));
-            }
-            Ok(Ok(_)) => info!("Live transcription produced no text; retrying with gpt-transcribe"),
-            Ok(Err(e)) => warn!("Live transcription failed ({e:#}); retrying with gpt-transcribe"),
-            Err(_) => info!("No live transcription result; using gpt-transcribe"),
-        }
-    }
-    transcribe(app, samples).await
+/// A live session's transcript with Handy's usual text cleanup.
+pub(crate) fn finish_live(app: &AppHandle, live: LiveText) -> Transcription {
+    let settings = get_settings(app);
+    let (languages, keywords) = hints(&settings);
+    finish(live.text, live.language, &settings, &languages, &keywords)
 }
 
 /// Transcribe 16 kHz mono `samples` with OpenAI, then apply Handy's usual
@@ -221,7 +203,7 @@ fn finish(
 }
 
 /// 16-bit PCM WAV bytes, the same format Handy saves recordings in.
-fn encode_wav(samples: &[f32]) -> Result<Vec<u8>> {
+pub(crate) fn encode_wav(samples: &[f32]) -> Result<Vec<u8>> {
     let spec = WavSpec {
         channels: 1,
         sample_rate: 16_000,

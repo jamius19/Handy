@@ -22,6 +22,9 @@ export const CLOUD_MODEL_ID = "openai-gpt-transcribe";
 /** The streaming OpenAI cloud model's id (`OPENAI_LIVE_CLOUD_MODEL_ID` in Rust). */
 export const LIVE_CLOUD_MODEL_ID = "openai-gpt-live-transcribe";
 
+/** The Deepgram Nova-3 cloud model's id (`DEEPGRAM_NOVA3_MODEL_ID` in Rust). */
+export const DEEPGRAM_MODEL_ID = "deepgram-nova-3";
+
 // Extract a GGUF quantization label from a filename, if present (e.g. "Q8_0").
 const quantOf = (filename: string): string | null => {
   const match = filename.match(
