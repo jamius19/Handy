@@ -927,6 +927,14 @@
         "label": "Ljudlös under inspelning",
         "description": "Stäng av systemljudet under inspelning"
       },
+      "duckWhileRecording": {
+        "label": "Sänk ljudet vid inspelning",
+        "description": "Sänk systemljudet under inspelning"
+      },
+      "duckAmount": {
+        "label": "Sänkningsgrad",
+        "description": "Hur mycket systemljudet sänks under inspelning: 0 % lämnar det oförändrat, 100 % tystar det"
+      },
       "appendTrailingSpace": {
         "label": "Lägg till avslutande mellanslag",
         "description": "Lägg till ett mellanslag efter klistrad transkription"

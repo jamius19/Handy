@@ -197,6 +197,9 @@ const settingUpdaters: {
     commands.changeVercelLiveTranscriptionModelSetting(value as string),
   mute_while_recording: (value) =>
     commands.changeMuteWhileRecordingSetting(value as boolean),
+  duck_while_recording: (value) =>
+    commands.changeDuckWhileRecordingSetting(value as boolean),
+  duck_amount: (value) => commands.changeDuckAmountSetting(value as number),
   append_trailing_space: (value) =>
     commands.changeAppendTrailingSpaceSetting(value as boolean),
   log_level: (value) => commands.setLogLevel(value as any),

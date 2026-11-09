@@ -927,6 +927,14 @@
         "label": "Ztlumit při nahrávání",
         "description": "Ztlumit systémový zvuk během nahrávání"
       },
+      "duckWhileRecording": {
+        "label": "Ztlumit zvuk při nahrávání",
+        "description": "Snížit hlasitost systému během nahrávání"
+      },
+      "duckAmount": {
+        "label": "Míra ztlumení",
+        "description": "O kolik snížit hlasitost systému při nahrávání: 0 % ji nezmění, 100 % ji úplně ztiší"
+      },
       "appendTrailingSpace": {
         "label": "Přidat koncovou mezeru",
         "description": "Přidat mezeru po vloženém přepisu"

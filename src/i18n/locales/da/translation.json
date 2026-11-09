@@ -927,6 +927,14 @@
         "label": "Mute under optagelse",
         "description": "Sluk for systemlyd under optagelse"
       },
+      "duckWhileRecording": {
+        "label": "Dæmp lyd under optagelse",
+        "description": "Sænk systemlyden under optagelse"
+      },
+      "duckAmount": {
+        "label": "Dæmpningsgrad",
+        "description": "Hvor meget systemlyden sænkes under optagelse: 0% lader den være uændret, 100% gør den lydløs"
+      },
       "appendTrailingSpace": {
         "label": "Tilføj efterfølgende mellemrum",
         "description": "Tilføj et mellemrum efter indsat transskription"

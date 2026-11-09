@@ -927,6 +927,14 @@
         "label": "Mute While Recording",
         "description": "Mute system audio during recording"
       },
+      "duckWhileRecording": {
+        "label": "Duck While Recording",
+        "description": "Lower system audio during recording"
+      },
+      "duckAmount": {
+        "label": "Duck Amount",
+        "description": "How much to lower system audio while recording: 0% leaves it unchanged, 100% silences it"
+      },
       "appendTrailingSpace": {
         "label": "Append Trailing Space",
         "description": "Add a space after pasted transcription"

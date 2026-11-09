@@ -589,6 +589,13 @@ pub struct AppSettings {
     pub post_process_selected_prompt_id: Option<String>,
     #[serde(default)]
     pub mute_while_recording: bool,
+    /// Lower the system output volume while recording. The settings UI keeps
+    /// this and `mute_while_recording` exclusive; mute wins if both are set.
+    #[serde(default)]
+    pub duck_while_recording: bool,
+    /// How much to lower the volume when ducking: 0 = unchanged, 100 = silent.
+    #[serde(default = "default_duck_amount")]
+    pub duck_amount: u8,
     #[serde(default)]
     pub append_trailing_space: bool,
     #[serde(default = "default_app_language")]
@@ -792,6 +799,10 @@ fn default_history_limit() -> usize {
 
 fn default_recording_retention_period() -> RecordingRetentionPeriod {
     RecordingRetentionPeriod::PreserveLimit
+}
+
+fn default_duck_amount() -> u8 {
+    50
 }
 
 fn default_audio_feedback_volume() -> f32 {
@@ -1145,6 +1156,8 @@ pub fn get_default_settings() -> AppSettings {
         post_process_prompts: default_post_process_prompts(),
         post_process_selected_prompt_id: None,
         mute_while_recording: false,
+        duck_while_recording: false,
+        duck_amount: default_duck_amount(),
         append_trailing_space: false,
         app_language: default_app_language(),
         theme: default_theme(),

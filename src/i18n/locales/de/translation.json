@@ -927,6 +927,14 @@
         "label": "Während Aufnahme stummschalten",
         "description": "Systemaudio während der Aufnahme stummschalten"
       },
+      "duckWhileRecording": {
+        "label": "Audio beim Aufnehmen absenken",
+        "description": "Systemlautstärke während der Aufnahme absenken"
+      },
+      "duckAmount": {
+        "label": "Absenkungsstärke",
+        "description": "Wie stark die Systemlautstärke bei der Aufnahme gesenkt wird: 0 % lässt sie unverändert, 100 % schaltet sie stumm"
+      },
       "appendTrailingSpace": {
         "label": "Leerzeichen anhängen",
         "description": "Leerzeichen nach eingefügter Transkription hinzufügen"

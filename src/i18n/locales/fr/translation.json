@@ -927,6 +927,14 @@
         "label": "Muet pendant l'enregistrement",
         "description": "Couper le son du système pendant l'enregistrement"
       },
+      "duckWhileRecording": {
+        "label": "Atténuer l'audio pendant l'enregistrement",
+        "description": "Baisser le son du système pendant l'enregistrement"
+      },
+      "duckAmount": {
+        "label": "Niveau d'atténuation",
+        "description": "De combien baisser le son du système pendant l'enregistrement : 0 % le laisse inchangé, 100 % le coupe"
+      },
       "appendTrailingSpace": {
         "label": "Ajouter une espace final",
         "description": "Ajouter une espace après la transcription collée"

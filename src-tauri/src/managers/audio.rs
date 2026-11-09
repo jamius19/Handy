@@ -232,6 +232,175 @@ fn restore_mute(prev_muted: Option<bool>) {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn default_output_volume() -> Option<windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume>
+{
+    unsafe {
+        use windows::Win32::{
+            Media::Audio::{
+                eMultimedia, eRender, Endpoints::IAudioEndpointVolume, IMMDeviceEnumerator,
+                MMDeviceEnumerator,
+            },
+            System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
+        };
+
+        // Matches set_mute: no-op if COM is already initialized on this thread.
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+
+        let all_devices: IMMDeviceEnumerator =
+            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
+        let default_device = all_devices
+            .GetDefaultAudioEndpoint(eRender, eMultimedia)
+            .ok()?;
+        default_device
+            .Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None)
+            .ok()
+    }
+}
+
+/// First `NN%` value in CLI output (pactl, amixer), as a 0.0–1.0+ fraction.
+#[cfg(target_os = "linux")]
+fn first_percent(output: &str) -> Option<f32> {
+    output
+        .split(|c: char| c.is_whitespace() || c == '[' || c == ']')
+        .find_map(|token| token.strip_suffix('%')?.parse::<f32>().ok())
+        .map(|percent| percent / 100.0)
+}
+
+/// Reads the system output volume (1.0 = 100%), mirroring `set_mute`'s
+/// backends. `None` when it can't be read; callers then skip ducking, since
+/// they couldn't put the volume back.
+#[cfg(target_os = "windows")]
+fn get_volume() -> Option<f32> {
+    unsafe { default_output_volume()?.GetMasterVolumeLevelScalar().ok() }
+}
+
+#[cfg(target_os = "linux")]
+fn get_volume() -> Option<f32> {
+    use std::process::Command;
+
+    // 1. PipeWire (wpctl): prints "Volume: 0.40", plus " [MUTED]" when muted.
+    // LC_ALL=C keeps the decimal point from becoming a comma ("0,40").
+    // Unparseable output falls through to the next backend.
+    if let Ok(out) = Command::new("wpctl")
+        .env("LC_ALL", "C")
+        .args(["get-volume", "@DEFAULT_AUDIO_SINK@"])
+        .output()
+    {
+        if out.status.success() {
+            let volume = String::from_utf8_lossy(&out.stdout)
+                .split_whitespace()
+                .nth(1)
+                .and_then(|v| v.parse().ok());
+            if volume.is_some() {
+                return volume;
+            }
+        }
+    }
+
+    // 2. PulseAudio (pactl): "Volume: front-left: 26214 /  40% / -23.88 dB, ..."
+    if let Ok(out) = Command::new("pactl")
+        .env("LC_ALL", "C")
+        .args(["get-sink-volume", "@DEFAULT_SINK@"])
+        .output()
+    {
+        if out.status.success() {
+            return first_percent(&String::from_utf8_lossy(&out.stdout));
+        }
+    }
+
+    // 3. ALSA (amixer): "Front Left: Playback 26214 [40%] [on]"
+    if let Ok(out) = Command::new("amixer")
+        .env("LC_ALL", "C")
+        .args(["get", "Master"])
+        .output()
+    {
+        if out.status.success() {
+            return first_percent(&String::from_utf8_lossy(&out.stdout));
+        }
+    }
+
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn get_volume() -> Option<f32> {
+    use std::process::Command;
+
+    let out = Command::new("osascript")
+        .args(["-e", "output volume of (get volume settings)"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    // "missing value" for outputs without a volume control.
+    let percent: f32 = String::from_utf8_lossy(&out.stdout).trim().parse().ok()?;
+    Some(percent / 100.0)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+fn get_volume() -> Option<f32> {
+    None
+}
+
+/// Sets the system output volume (1.0 = 100%) through the same backend
+/// `get_volume` reads. Fails silently, like `set_mute`.
+fn set_volume(volume: f32) {
+    let volume = volume.max(0.0);
+
+    #[cfg(target_os = "windows")]
+    unsafe {
+        if let Some(volume_interface) = default_output_volume() {
+            let _ = volume_interface.SetMasterVolumeLevelScalar(volume.min(1.0), std::ptr::null());
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::process::Command;
+
+        let percent = format!("{}%", (volume * 100.0).round() as u32);
+
+        if Command::new("wpctl")
+            .env("LC_ALL", "C")
+            .args([
+                "set-volume",
+                "@DEFAULT_AUDIO_SINK@",
+                &format!("{volume:.4}"),
+            ])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            return;
+        }
+
+        if Command::new("pactl")
+            .args(["set-sink-volume", "@DEFAULT_SINK@", &percent])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            return;
+        }
+
+        let _ = Command::new("amixer")
+            .args(["set", "Master", &percent])
+            .output();
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let script = format!(
+            "set volume output volume {}",
+            (volume * 100.0).round() as u32
+        );
+        let _ = Command::new("osascript").args(["-e", &script]).output();
+    }
+}
+
 const WHISPER_SAMPLE_RATE: usize = 16000;
 
 /* ──────────────────────────────────────────────────────────────── */
@@ -253,10 +422,30 @@ pub enum MicrophoneMode {
 /// exactly as it was. `did_mute` is true while our mute is active; `prev_muted`
 /// is the system mute state captured just before we muted, used to decide
 /// whether to unmute on stop (so a system that was already muted stays muted).
+/// `ducked_from` is the output volume captured just before "duck while
+/// recording" lowered it; `Some` while our duck is active.
 #[derive(Debug, Default, Clone, Copy)]
 struct MuteState {
     did_mute: bool,
     prev_muted: Option<bool>,
+    ducked_from: Option<f32>,
+}
+
+impl MuteState {
+    fn is_active(&self) -> bool {
+        self.did_mute || self.ducked_from.is_some()
+    }
+
+    /// Undoes whatever mute or duck we applied.
+    fn restore(&mut self) {
+        if self.did_mute {
+            restore_mute(self.prev_muted);
+            self.did_mute = false;
+        }
+        if let Some(volume) = self.ducked_from.take() {
+            set_volume(volume);
+        }
+    }
 }
 
 /// The persisted microphone preference currently in effect. Clamshell and
@@ -757,43 +946,52 @@ impl AudioRecordingManager {
 
     /* ---------- microphone life-cycle -------------------------------------- */
 
-    /// Applies mute if mute_while_recording is enabled and stream is open.
-    /// Snapshots the system's prior mute state first so `remove_mute` can
+    /// Applies mute (mute_while_recording) or duck (duck_while_recording) if
+    /// enabled and the stream is open. Mute wins if both are set. Snapshots
+    /// the system's prior mute state or volume first so `remove_mute` can
     /// restore it instead of unconditionally unmuting.
     pub fn apply_mute(&self) {
         let settings = get_settings(&self.app_handle);
-        if !settings.mute_while_recording {
+        let duck = settings.duck_while_recording && settings.duck_amount > 0;
+        if !settings.mute_while_recording && !duck {
             return;
         }
 
         // Lock order: is_open before mute_state (matches stop_microphone_stream).
         let is_open = self.is_open.lock().unwrap();
         let mut mute_guard = self.mute_state.lock().unwrap();
-        // Already muted this session — don't re-snapshot, or a duplicate/late
-        // apply would overwrite prev_muted with our own forced-muted state and
-        // strand audio muted on stop.
-        if mute_guard.did_mute {
+        // Already muted/ducked this session — don't re-snapshot, or a
+        // duplicate/late apply would overwrite the snapshot with our own
+        // forced state and strand audio muted or ducked on stop.
+        if mute_guard.is_active() || !*is_open {
             return;
         }
-        if *is_open {
+
+        if settings.mute_while_recording {
             mute_guard.prev_muted = get_mute();
             set_mute(true);
             mute_guard.did_mute = true;
             debug!("Mute applied (prev_muted={:?})", mute_guard.prev_muted);
+        } else if let Some(volume) = get_volume() {
+            let amount = f32::from(settings.duck_amount.min(100)) / 100.0;
+            set_volume(volume * (1.0 - amount));
+            mute_guard.ducked_from = Some(volume);
+            debug!(
+                "Duck applied ({}%, prev_volume={volume})",
+                settings.duck_amount
+            );
+        } else {
+            debug!("Duck skipped: system output volume could not be read");
         }
     }
 
-    /// Removes mute if it was applied, restoring the system's prior mute state
-    /// (a system already muted before recording stays muted).
+    /// Removes mute or duck if it was applied, restoring the system's prior
+    /// state (a system already muted before recording stays muted).
     pub fn remove_mute(&self) {
         let mut mute_guard = self.mute_state.lock().unwrap();
-        if mute_guard.did_mute {
-            restore_mute(mute_guard.prev_muted);
-            mute_guard.did_mute = false;
-            debug!(
-                "Mute removed (restored prev_muted={:?})",
-                mute_guard.prev_muted
-            );
+        if mute_guard.is_active() {
+            debug!("Restoring system audio ({:?})", *mute_guard);
+            mute_guard.restore();
         }
     }
 
@@ -824,11 +1022,7 @@ impl AudioRecordingManager {
             // Torn down inline rather than via stop_microphone_stream(), which
             // takes the `is_open` lock we are already holding.
             {
-                let mut mute_guard = self.mute_state.lock().unwrap();
-                if mute_guard.did_mute {
-                    restore_mute(mute_guard.prev_muted);
-                    mute_guard.did_mute = false;
-                }
+                self.mute_state.lock().unwrap().restore();
             }
             let failed = self.recorder.lock().unwrap().take();
             if let Some(microphone) = failed {
@@ -847,11 +1041,7 @@ impl AudioRecordingManager {
         // be false here; if it somehow isn't, restore rather than just clearing the
         // flag, which would strand system audio muted.
         {
-            let mut mute_guard = self.mute_state.lock().unwrap();
-            if mute_guard.did_mute {
-                restore_mute(mute_guard.prev_muted);
-                mute_guard.did_mute = false;
-            }
+            self.mute_state.lock().unwrap().restore();
         }
 
         // Get the selected device from settings, considering clamshell mode.
@@ -925,11 +1115,7 @@ impl AudioRecordingManager {
         }
 
         {
-            let mut mute_guard = self.mute_state.lock().unwrap();
-            if mute_guard.did_mute {
-                restore_mute(mute_guard.prev_muted);
-            }
-            mute_guard.did_mute = false;
+            self.mute_state.lock().unwrap().restore();
         }
 
         let microphone = self.recorder.lock().unwrap().take();
@@ -1326,6 +1512,9 @@ impl AudioRecordingManager {
     /// Cancel any ongoing recording without returning audio samples
     pub fn cancel_recording(&self) {
         self.invalidate_recording_readiness();
+        // A cancelled recording never reaches the stop action's remove_mute,
+        // and an always-on or lazily closed stream stays open, so restore now.
+        self.remove_mute();
         self.cancel_generation.fetch_add(1, Ordering::AcqRel);
         let mut state = self.state.lock().unwrap();
 

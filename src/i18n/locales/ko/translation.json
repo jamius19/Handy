@@ -927,6 +927,14 @@
         "label": "녹음 중 음소거",
         "description": "녹음 중 시스템 오디오 음소거"
       },
+      "duckWhileRecording": {
+        "label": "녹음 중 오디오 줄이기",
+        "description": "녹음하는 동안 시스템 오디오 볼륨을 줄입니다"
+      },
+      "duckAmount": {
+        "label": "줄이는 정도",
+        "description": "녹음 중 시스템 오디오를 얼마나 줄일지: 0%는 그대로, 100%는 무음"
+      },
       "appendTrailingSpace": {
         "label": "끝 공백 추가",
         "description": "붙여넣은 텍스트 끝에 공백 추가"

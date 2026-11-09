@@ -14,11 +14,20 @@ export const MuteWhileRecording: React.FC<MuteWhileRecordingToggleProps> =
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
     const muteEnabled = getSetting("mute_while_recording") ?? false;
+    const duckEnabled = getSetting("duck_while_recording") ?? false;
+
+    // Mute and duck are exclusive: turning one on turns the other off.
+    const handleChange = async (enabled: boolean) => {
+      if (enabled && duckEnabled) {
+        await updateSetting("duck_while_recording", false);
+      }
+      await updateSetting("mute_while_recording", enabled);
+    };
 
     return (
       <ToggleSwitch
         checked={muteEnabled}
-        onChange={(enabled) => updateSetting("mute_while_recording", enabled)}
+        onChange={handleChange}
         isUpdating={isUpdating("mute_while_recording")}
         label={t("settings.debug.muteWhileRecording.label")}
         description={t("settings.debug.muteWhileRecording.description")}

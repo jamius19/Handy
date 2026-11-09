@@ -11,6 +11,8 @@ import { AudioFeedback } from "../AudioFeedback";
 import { useSettings } from "../../../hooks/useSettings";
 import { VolumeSlider } from "../VolumeSlider";
 import { MuteWhileRecording } from "../MuteWhileRecording";
+import { DuckWhileRecording } from "../DuckWhileRecording";
+import { DuckAmountSlider } from "../DuckAmountSlider";
 import { ModelSettingsCard } from "./ModelSettingsCard";
 import { PreferredLanguages } from "../PreferredLanguages";
 import { ChineseScriptSetting } from "../ChineseScript";
@@ -19,6 +21,7 @@ import { isChinese } from "@/lib/utils/languageSuggestions";
 export const GeneralSettings: React.FC = () => {
   const { t } = useTranslation();
   const { audioFeedbackEnabled, getSetting } = useSettings();
+  const duckEnabled = getSetting("duck_while_recording") ?? false;
   const isLinux = type() === "linux";
   // Only for Chinese speakers, or anyone who already picked a script.
   const speaksChinese =
@@ -43,6 +46,8 @@ export const GeneralSettings: React.FC = () => {
         <MicrophoneSelector descriptionMode="tooltip" grouped={true} />
         <ChannelSelector descriptionMode="tooltip" grouped={true} />
         <MuteWhileRecording descriptionMode="tooltip" grouped={true} />
+        <DuckWhileRecording descriptionMode="tooltip" grouped={true} />
+        <DuckAmountSlider disabled={!duckEnabled} />
         <AudioFeedback descriptionMode="tooltip" grouped={true} />
         <OutputDeviceSelector
           descriptionMode="tooltip"

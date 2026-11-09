@@ -927,6 +927,14 @@
         "label": "Silenciar Durante Gravação",
         "description": "Silenciar áudio do sistema durante a gravação"
       },
+      "duckWhileRecording": {
+        "label": "Atenuar áudio ao gravar",
+        "description": "Baixar o áudio do sistema durante a gravação"
+      },
+      "duckAmount": {
+        "label": "Nível de atenuação",
+        "description": "Quanto baixar o áudio do sistema ao gravar: 0% mantém inalterado, 100% silencia"
+      },
       "appendTrailingSpace": {
         "label": "Adicionar Espaço Final",
         "description": "Adicionar um espaço após a transcrição colada"

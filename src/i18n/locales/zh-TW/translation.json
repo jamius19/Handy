@@ -927,6 +927,14 @@
         "label": "錄製時靜音",
         "description": "錄製期間靜音系統音訊"
       },
+      "duckWhileRecording": {
+        "label": "錄音時降低音量",
+        "description": "錄音期間降低系統音量"
+      },
+      "duckAmount": {
+        "label": "降低幅度",
+        "description": "錄音時系統音量降低的幅度：0% 不變，100% 完全靜音"
+      },
       "appendTrailingSpace": {
         "label": "附加尾部空格",
         "description": "在貼上的轉錄後新增空格"

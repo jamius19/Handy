@@ -927,6 +927,14 @@
         "label": "Wycisz podczas nagrywania",
         "description": "Wycisz dźwięk systemu podczas nagrywania"
       },
+      "duckWhileRecording": {
+        "label": "Przycisz dźwięk podczas nagrywania",
+        "description": "Zmniejsz głośność systemu podczas nagrywania"
+      },
+      "duckAmount": {
+        "label": "Stopień przyciszenia",
+        "description": "O ile zmniejszyć głośność systemu podczas nagrywania: 0% bez zmian, 100% całkowite wyciszenie"
+      },
       "appendTrailingSpace": {
         "label": "Dodaj spację na końcu",
         "description": "Dodaj spację po wklejonej transkrypcji"

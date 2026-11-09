@@ -927,6 +927,14 @@
         "label": "Kayıt Sırasında Sessize Al",
         "description": "Kayıt sırasında sistem sesini kapatır"
       },
+      "duckWhileRecording": {
+        "label": "Kayıt Sırasında Sesi Kıs",
+        "description": "Kayıt sırasında sistem sesini kısar"
+      },
+      "duckAmount": {
+        "label": "Kısma Miktarı",
+        "description": "Kayıt sırasında sistem sesinin ne kadar kısılacağı: %0 değiştirmez, %100 tamamen susturur"
+      },
       "appendTrailingSpace": {
         "label": "Sonuna Boşluk Ekle",
         "description": "Yapıştırılan transkripsiyondan sonra boşluk ekler"

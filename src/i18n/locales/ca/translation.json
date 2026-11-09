@@ -927,6 +927,14 @@
         "label": "Silencia durant l'enregistrament",
         "description": "Silencia l'àudio del sistema durant l'enregistrament"
       },
+      "duckWhileRecording": {
+        "label": "Atenua l'àudio en gravar",
+        "description": "Abaixa l'àudio del sistema durant la gravació"
+      },
+      "duckAmount": {
+        "label": "Quantitat d'atenuació",
+        "description": "Quant s'abaixa l'àudio del sistema en gravar: 0% el deixa igual, 100% el silencia"
+      },
       "appendTrailingSpace": {
         "label": "Afegiu un espai al final",
         "description": "Afegeix un espai après de la transcripció enganxada"

@@ -927,6 +927,14 @@
         "label": "Silenzia durante la registrazione",
         "description": "Silenzia l'audio di sistema durante la registrazione"
       },
+      "duckWhileRecording": {
+        "label": "Abbassa audio durante la registrazione",
+        "description": "Abbassa l'audio di sistema durante la registrazione"
+      },
+      "duckAmount": {
+        "label": "Livello di attenuazione",
+        "description": "Di quanto abbassare l'audio di sistema durante la registrazione: 0% lo lascia invariato, 100% lo silenzia"
+      },
       "appendTrailingSpace": {
         "label": "Aggiungi Spazio Finale",
         "description": "Aggiungi uno spazio dopo la trascrizione incollata"

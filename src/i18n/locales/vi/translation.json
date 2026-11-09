@@ -927,6 +927,14 @@
         "label": "Tắt tiếng khi ghi âm",
         "description": "Tắt tiếng âm thanh hệ thống trong khi ghi âm"
       },
+      "duckWhileRecording": {
+        "label": "Giảm âm khi ghi âm",
+        "description": "Giảm âm thanh hệ thống trong khi ghi âm"
+      },
+      "duckAmount": {
+        "label": "Mức giảm âm",
+        "description": "Mức giảm âm thanh hệ thống khi ghi âm: 0% giữ nguyên, 100% tắt tiếng hoàn toàn"
+      },
       "appendTrailingSpace": {
         "label": "Thêm dấu cách cuối",
         "description": "Thêm một dấu cách sau bản ghi đã dán"

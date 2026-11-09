@@ -927,6 +927,14 @@
         "label": "録音中にミュート",
         "description": "録音中にシステムオーディオをミュート"
       },
+      "duckWhileRecording": {
+        "label": "録音中に音量を下げる",
+        "description": "録音中にシステム音量を下げます"
+      },
+      "duckAmount": {
+        "label": "音量を下げる量",
+        "description": "録音中にシステム音量を下げる量：0%で変化なし、100%で無音"
+      },
       "appendTrailingSpace": {
         "label": "末尾にスペースを追加",
         "description": "貼り付けた文字起こしの後にスペースを追加"

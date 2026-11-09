@@ -927,6 +927,14 @@
         "label": "Bisukan Saat Merekam",
         "description": "Bisukan audio sistem selama perekaman"
       },
+      "duckWhileRecording": {
+        "label": "Kecilkan Audio Saat Merekam",
+        "description": "Kecilkan audio sistem selama perekaman"
+      },
+      "duckAmount": {
+        "label": "Tingkat Pengecilan",
+        "description": "Seberapa besar audio sistem dikecilkan saat merekam: 0% tidak mengubahnya, 100% membisukannya"
+      },
       "appendTrailingSpace": {
         "label": "Tambahkan Spasi di Akhir",
         "description": "Tambahkan spasi setelah transkripsi ditempel"
