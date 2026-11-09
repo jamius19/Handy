@@ -374,10 +374,6 @@
           "cancel": {
             "name": "キャンセルのショートカット",
             "description": "現在の録音をキャンセルするためのキーボードショートカット。"
-          },
-          "transcribe_with_post_process": {
-            "name": "後処理のショートカット",
-            "description": "文字起こしに常に AI 後処理を適用するキーボードショートカット。 (任意)"
           }
         },
         "errors": {
@@ -671,9 +667,6 @@
         "milliseconds": "{{value}} ms",
         "seconds": "{{value}} s",
         "empty": "No post-processing runs recorded yet."
-      },
-      "hotkey": {
-        "title": "ショートカット"
       },
       "api": {
         "title": "API",

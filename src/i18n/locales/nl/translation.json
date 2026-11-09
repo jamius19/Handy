@@ -374,10 +374,6 @@
           "cancel": {
             "name": "Sneltoets voor annuleren",
             "description": "De sneltoets om de huidige opname te annuleren."
-          },
-          "transcribe_with_post_process": {
-            "name": "Sneltoets voor naverwerking",
-            "description": "Optioneel: Een specifieke sneltoets die altijd AI-naverwerking toepast op je transcriptie."
           }
         },
         "errors": {
@@ -671,9 +667,6 @@
         "milliseconds": "{{value}} ms",
         "seconds": "{{value}} s",
         "empty": "No post-processing runs recorded yet."
-      },
-      "hotkey": {
-        "title": "Sneltoets"
       },
       "api": {
         "title": "API",

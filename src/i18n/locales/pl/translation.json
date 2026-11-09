@@ -374,10 +374,6 @@
           "cancel": {
             "name": "Skrót anulowania",
             "description": "Skrót klawiaturowy do anulowania bieżącego nagrywania."
-          },
-          "transcribe_with_post_process": {
-            "name": "Skrót postprocessingu",
-            "description": "Opcjonalnie: Dedykowany skrót klawiszowy, który zawsze stosuje postprocessing AI do transkrypcji."
           }
         },
         "errors": {
@@ -671,9 +667,6 @@
         "milliseconds": "{{value}} ms",
         "seconds": "{{value}} s",
         "empty": "No post-processing runs recorded yet."
-      },
-      "hotkey": {
-        "title": "Skrót klawiszowy"
       },
       "api": {
         "title": "API",

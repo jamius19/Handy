@@ -374,10 +374,6 @@
           "cancel": {
             "name": "קיצור מקשים לביטול",
             "description": "קיצור המקלדת לביטול ההקלטה הנוכחית."
-          },
-          "transcribe_with_post_process": {
-            "name": "קיצור לעיבוד משלים",
-            "description": "אופציונלי: קיצור מקשים ייעודי שתמיד מפעיל עיבוד AI על התמלול."
           }
         },
         "errors": {
@@ -671,9 +667,6 @@
         "milliseconds": "{{value}} ms",
         "seconds": "{{value}} s",
         "empty": "No post-processing runs recorded yet."
-      },
-      "hotkey": {
-        "title": "קיצור מקשים"
       },
       "api": {
         "title": "API",

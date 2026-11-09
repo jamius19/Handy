@@ -1044,26 +1044,6 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: default_shortcut.to_string(),
         },
     );
-    #[cfg(target_os = "windows")]
-    let default_post_process_shortcut = "ctrl+shift+space";
-    #[cfg(target_os = "macos")]
-    let default_post_process_shortcut = "option+shift+space";
-    #[cfg(target_os = "linux")]
-    let default_post_process_shortcut = "ctrl+alt+shift+space";
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    let default_post_process_shortcut = "alt+shift+space";
-
-    bindings.insert(
-        "transcribe_with_post_process".to_string(),
-        ShortcutBinding {
-            id: "transcribe_with_post_process".to_string(),
-            name: "Transcribe with Post-Processing".to_string(),
-            description: "Converts your speech into text and applies AI post-processing."
-                .to_string(),
-            default_binding: default_post_process_shortcut.to_string(),
-            current_binding: default_post_process_shortcut.to_string(),
-        },
-    );
     bindings.insert(
         "cancel".to_string(),
         ShortcutBinding {
@@ -1408,6 +1388,16 @@ fn apply_settings_migrations(
         updated = true;
     }
 
+    // Post-processing now follows `post_process_enabled` on the transcribe
+    // shortcut, so the separate post-processing shortcut is gone.
+    if settings
+        .bindings
+        .remove("transcribe_with_post_process")
+        .is_some()
+    {
+        updated = true;
+    }
+
     // One-time overlay migration (only while the new key is absent): the retired
     // overlay_position `none` meant "hide the overlay" → OverlayStyle::None; any
     // other position had it visible → Live. The position enum no longer has a
@@ -1692,6 +1682,29 @@ mod tests {
         assert_eq!(settings.transcribe_gpu_device, None);
     }
 
+    /// Loading only adds missing default bindings, so the retired
+    /// post-processing shortcut must be removed from stores that still have it.
+    #[test]
+    fn migration_removes_retired_post_process_binding() {
+        let mut stored = default_settings_json();
+        stored["bindings"]["transcribe_with_post_process"] = serde_json::json!({
+            "id": "transcribe_with_post_process",
+            "name": "Transcribe with Post-Processing",
+            "description": "Converts your speech into text and applies AI post-processing.",
+            "default_binding": "ctrl+shift+space",
+            "current_binding": "ctrl+shift+space"
+        });
+        let mut settings: AppSettings =
+            serde_json::from_value(stored.clone()).expect("stored settings parse");
+
+        assert!(apply_settings_migrations(&mut settings, &stored));
+        assert!(!settings
+            .bindings
+            .contains_key("transcribe_with_post_process"));
+        assert!(settings.bindings.contains_key("transcribe"));
+        assert!(settings.bindings.contains_key("cancel"));
+    }
+
     #[test]
     fn salvage_preserves_valid_fields_when_one_value_is_invalid() {
         let mut stored = default_settings_json();
@@ -1740,10 +1753,6 @@ mod tests {
         assert_eq!(
             defaults.bindings["transcribe"].current_binding,
             "ctrl+alt+space"
-        );
-        assert_eq!(
-            defaults.bindings["transcribe_with_post_process"].current_binding,
-            "ctrl+alt+shift+space",
         );
     }
 

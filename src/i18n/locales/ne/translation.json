@@ -374,10 +374,6 @@
           "cancel": {
             "name": "रद्द सर्टकट",
             "description": "हालको रेकर्डिङ रद्द गर्ने किबोर्ड सर्टकट।"
-          },
-          "transcribe_with_post_process": {
-            "name": "पोस्ट-प्रोसेसिङ हटकी",
-            "description": "वैकल्पिक: तपाईंको ट्रान्सक्रिप्सनमा सधैँ AI पोस्ट-प्रोसेसिङ लागू गर्ने छुट्टै हटकी।"
           }
         },
         "errors": {
@@ -671,9 +667,6 @@
         "milliseconds": "{{value}} ms",
         "seconds": "{{value}} s",
         "empty": "No post-processing runs recorded yet."
-      },
-      "hotkey": {
-        "title": "हटकी"
       },
       "api": {
         "title": "API",

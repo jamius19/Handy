@@ -374,10 +374,6 @@
           "cancel": {
             "name": "Горячая клавиша отмены",
             "description": "Сочетание клавиш для отмены текущей записи."
-          },
-          "transcribe_with_post_process": {
-            "name": "Горячая клавиша постобработки",
-            "description": "Специальное сочетание клавиш для ИИ-постобработки вашей транскрипции."
           }
         },
         "errors": {
@@ -671,9 +667,6 @@
         "milliseconds": "{{value}} ms",
         "seconds": "{{value}} s",
         "empty": "No post-processing runs recorded yet."
-      },
-      "hotkey": {
-        "title": "Горячая клавиша"
       },
       "api": {
         "title": "API",

@@ -374,10 +374,6 @@
           "cancel": {
             "name": "Drecera de cancel·lació",
             "description": "La drecera de teclat per cancel·lar l'enregistrament actual."
-          },
-          "transcribe_with_post_process": {
-            "name": "Drecera de postprocessament",
-            "description": "Opcional: una drecera específica que sempre aplica postprocessament amb IA a la transcripció."
           }
         },
         "errors": {
@@ -671,9 +667,6 @@
         "milliseconds": "{{value}} ms",
         "seconds": "{{value}} s",
         "empty": "No post-processing runs recorded yet."
-      },
-      "hotkey": {
-        "title": "Drecera de teclat"
       },
       "api": {
         "title": "API",

@@ -108,9 +108,7 @@ pub trait ShortcutAction: Send + Sync {
 }
 
 // Transcribe Action
-struct TranscribeAction {
-    post_process: bool,
-}
+struct TranscribeAction;
 
 /// Open the post-processing provider's connection ahead of its request.
 fn warm_up_post_process_connection(app: &AppHandle) {
@@ -741,7 +739,7 @@ impl ShortcutAction for TranscribeAction {
         }
 
         // After capture starts, so it adds nothing to keypress->capture time.
-        if self.post_process {
+        if get_settings(app).post_process_enabled {
             warm_up_post_process_connection(app);
         }
 
@@ -790,7 +788,7 @@ impl ShortcutAction for TranscribeAction {
         play_feedback_sound(app, SoundType::Stop);
 
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
-        let post_process = self.post_process;
+        let post_process = get_settings(app).post_process_enabled;
         // A recording longer than the warm-up's freshness has likely lost the
         // connection opened at start; open another while transcription runs.
         if post_process {
@@ -1196,13 +1194,7 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
     let mut map = HashMap::new();
     map.insert(
         "transcribe".to_string(),
-        Arc::new(TranscribeAction {
-            post_process: false,
-        }) as Arc<dyn ShortcutAction>,
-    );
-    map.insert(
-        "transcribe_with_post_process".to_string(),
-        Arc::new(TranscribeAction { post_process: true }) as Arc<dyn ShortcutAction>,
+        Arc::new(TranscribeAction) as Arc<dyn ShortcutAction>,
     );
     map.insert(
         "cancel".to_string(),

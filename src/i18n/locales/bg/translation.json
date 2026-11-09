@@ -374,10 +374,6 @@
           "cancel": {
             "name": "Бърз клавиш за отказ",
             "description": "Клавишната комбинация за отмяна на текущия запис."
-          },
-          "transcribe_with_post_process": {
-            "name": "Бърз клавиш за постобработка",
-            "description": "По избор: отделна комбинация, която винаги прилага ИИ постобработка върху транскрипцията."
           }
         },
         "errors": {
@@ -671,9 +667,6 @@
         "milliseconds": "{{value}} ms",
         "seconds": "{{value}} s",
         "empty": "No post-processing runs recorded yet."
-      },
-      "hotkey": {
-        "title": "Бърз клавиш"
       },
       "api": {
         "title": "API",

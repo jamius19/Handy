@@ -97,7 +97,6 @@ Handy supports command-line flags for controlling a running instance and customi
 
 ```bash
 handy --toggle-transcription    # Toggle recording on/off
-handy --toggle-post-process     # Toggle recording with post-processing on/off
 handy --cancel                  # Cancel the current operation
 ```
 
@@ -231,21 +230,21 @@ Without these tools, Handy falls back to enigo which may have limited compatibil
 
 - You can also trigger Handy externally via Unix signals or the CLI flags, which lets Wayland window managers or other hotkey daemons keep ownership of keybindings:
 
-  | Action                                    | Trigger                                                  |
-  | ----------------------------------------- | -------------------------------------------------------- |
-  | Toggle transcription                      | `pkill -USR2 -n handy` or `handy --toggle-transcription` |
-  | Toggle transcription with post-processing | `handy --toggle-post-process`                            |
+  | Action               | Trigger                                                  |
+  | -------------------- | -------------------------------------------------------- |
+  | Toggle transcription | `pkill -USR2 -n handy` or `handy --toggle-transcription` |
+
+  Post-processing follows the **Post Processing** setting, so a toggle with it enabled is post-processed too.
 
   Example Sway config:
 
   ```ini
   bindsym $mod+o exec pkill -USR2 -n handy
-  bindsym $mod+p exec handy --toggle-post-process
   ```
 
   `pkill` here simply delivers the signal—it does not terminate the process.
 
-  > **Behavior change:** older releases also accepted `SIGUSR1` for toggling transcription with post-processing. WebKitGTK — the webview engine embedded in Handy on Linux — uses SIGUSR1 internally to coordinate JavaScript garbage collection, so listening for it caused phantom recordings and interrupted dictations every few minutes ([#1660](https://github.com/cjpais/Handy/issues/1660)). Handy no longer listens for SIGUSR1 on Linux; the post-processing toggle is still available via `handy --toggle-post-process`. **Remove any `pkill -USR1` bindings**: the signal is now delivered straight to WebKit's internal handler and can crash the app.
+  > **Behavior change:** older releases also accepted `SIGUSR1` for toggling transcription with post-processing. WebKitGTK — the webview engine embedded in Handy on Linux — uses SIGUSR1 internally to coordinate JavaScript garbage collection, so listening for it caused phantom recordings and interrupted dictations every few minutes ([#1660](https://github.com/cjpais/Handy/issues/1660)). Handy no longer listens for SIGUSR1; post-processing now follows the **Post Processing** setting. **Remove any `pkill -USR1` bindings**: the signal is now delivered straight to WebKit's internal handler and can crash the app.
 
 **Overlay & Pasting Issues (Linux):**
 
