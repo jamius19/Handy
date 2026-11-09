@@ -8,12 +8,11 @@
 //! the pre-recorded request that background jobs use, and that a dictation
 //! falls back to when the stream has no result.
 
-use crate::audio_toolkit::OutputLanguageEvidence;
+use crate::audio_toolkit::{encode_wav, OutputLanguageEvidence};
 use crate::cloud_live_transcription::LiveText;
 use crate::language_detection::{LanguageDecision, LanguageSource};
 use crate::llm_client::{report_reqwest_error, shared_client};
 use crate::managers::transcription::{post_process_transcription_text, Transcription};
-use crate::openai_transcription::encode_wav;
 use crate::settings::{get_settings, AppSettings};
 use anyhow::{anyhow, Result};
 use log::info;

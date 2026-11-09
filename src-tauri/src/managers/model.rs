@@ -39,9 +39,9 @@ pub enum ModelSource {
     /// Already present on disk — a user-provided custom model, or one discovered
     /// in a shared cache. Nothing to download.
     Local,
-    /// Runs on a cloud API, not on this computer: nothing to download, load
-    /// or delete.
-    Cloud,
+    /// Runs on `provider`'s API, not on this computer: nothing to download,
+    /// load or delete.
+    Cloud { provider: CloudProvider },
 }
 
 /// The OpenAI `gpt-transcribe` cloud model (see `openai_transcription.rs`).
@@ -57,29 +57,125 @@ pub const OPENAI_LIVE_CLOUD_MODEL_ID: &str = "openai-gpt-live-transcribe";
 pub const DEEPGRAM_NOVA3_MODEL_ID: &str = "deepgram-nova-3";
 
 /// The API a cloud model runs on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum CloudProvider {
     OpenAi,
     Deepgram,
 }
 
+/// Whisper's languages (99, from its tokenizer).
+const WHISPER_LANGUAGES: &[&str] = &[
+    "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar", "sv", "it",
+    "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu", "ta", "no", "th", "ur",
+    "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa", "lv", "bn", "sr", "az", "sl", "kn",
+    "et", "mk", "br", "eu", "is", "hy", "ne", "mn", "bs", "kk", "sq", "sw", "gl", "mr", "pa", "si",
+    "km", "sn", "yo", "so", "af", "oc", "ka", "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo",
+    "ht", "ps", "tk", "nn", "mt", "sa", "lb", "my", "bo", "tl", "mg", "as", "tt", "haw", "ln",
+    "ha", "ba", "jw", "su", "yue",
+];
+
+/// A model that runs on a cloud API. Each cloud model's facts live only
+/// here: its registry entry, the API it's routed to and whether it streams
+/// all come from its row in [`CLOUD_MODELS`].
+pub struct CloudModel {
+    pub id: &'static str,
+    pub provider: CloudProvider,
+    name: &'static str,
+    description: &'static str,
+    accuracy_score: f32,
+    speed_score: f32,
+    /// Transcribes while the recording goes, not once it stops.
+    pub streams: bool,
+    /// Reports the language it heard, which gates the "Auto" option.
+    detects_language: bool,
+    languages: &'static [&'static str],
+}
+
+pub const CLOUD_MODELS: &[CloudModel] = &[
+    // OpenAI publishes no language list for its models; Whisper's is the
+    // closest known set.
+    CloudModel {
+        id: OPENAI_CLOUD_MODEL_ID,
+        provider: CloudProvider::OpenAi,
+        name: "OpenAI GPT-Transcribe",
+        description: "Transcribes in the cloud with your OpenAI API key.",
+        accuracy_score: 0.95,
+        speed_score: 0.8,
+        streams: false,
+        detects_language: true,
+        languages: WHISPER_LANGUAGES,
+    },
+    // Returns no detected language.
+    CloudModel {
+        id: OPENAI_LIVE_CLOUD_MODEL_ID,
+        provider: CloudProvider::OpenAi,
+        name: "OpenAI GPT-Live-Transcribe",
+        description: "Transcribes in the cloud as you speak, with your OpenAI API key.",
+        accuracy_score: 0.9,
+        speed_score: 0.95,
+        streams: true,
+        detects_language: false,
+        languages: WHISPER_LANGUAGES,
+    },
+    // With Auto it runs multilingual and reports the languages it heard.
+    CloudModel {
+        id: DEEPGRAM_NOVA3_MODEL_ID,
+        provider: CloudProvider::Deepgram,
+        name: "Deepgram Nova-3",
+        description: "Transcribes in the cloud as you speak, with your Deepgram API key.",
+        accuracy_score: 0.9,
+        speed_score: 0.95,
+        streams: true,
+        detects_language: true,
+        languages: crate::deepgram_transcription::SUPPORTED_LANGUAGES,
+    },
+];
+
+impl CloudModel {
+    fn info(&self) -> ModelInfo {
+        ModelInfo {
+            id: self.id.to_string(),
+            name: self.name.to_string(),
+            description: self.description.to_string(),
+            filename: String::new(),
+            source: ModelSource::Cloud {
+                provider: self.provider,
+            },
+            size_mb: 0,
+            is_downloaded: true,
+            is_downloading: false,
+            partial_size: 0,
+            accuracy_score: self.accuracy_score,
+            speed_score: self.speed_score,
+            supports_translation: false,
+            is_recommended: false,
+            supported_languages: self.languages.iter().map(|c| c.to_string()).collect(),
+            supports_language_selection: true,
+            is_custom: false,
+            supports_streaming: self.streams,
+            supports_language_detection: self.detects_language,
+        }
+    }
+}
+
+/// `model_id`'s row in [`CLOUD_MODELS`], or `None` for a local model.
+pub fn cloud_model(model_id: &str) -> Option<&'static CloudModel> {
+    CLOUD_MODELS.iter().find(|model| model.id == model_id)
+}
+
 /// The API `model_id` runs on, or `None` for a local model.
 pub fn cloud_provider(model_id: &str) -> Option<CloudProvider> {
-    match model_id {
-        OPENAI_CLOUD_MODEL_ID | OPENAI_LIVE_CLOUD_MODEL_ID => Some(CloudProvider::OpenAi),
-        DEEPGRAM_NOVA3_MODEL_ID => Some(CloudProvider::Deepgram),
-        _ => None,
-    }
+    cloud_model(model_id).map(|model| model.provider)
 }
 
 /// Whether `model_id` names a cloud model rather than a local one.
 pub fn is_cloud_model(model_id: &str) -> bool {
-    cloud_provider(model_id).is_some()
+    cloud_model(model_id).is_some()
 }
 
 /// Whether `model_id` names a cloud model that streams while recording.
 pub fn is_live_cloud_model(model_id: &str) -> bool {
-    model_id == OPENAI_LIVE_CLOUD_MODEL_ID || model_id == DEEPGRAM_NOVA3_MODEL_ID
+    cloud_model(model_id).is_some_and(|model| model.streams)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -931,102 +1027,12 @@ impl ModelManager {
 
         let mut available_models = HashMap::new();
 
-        // Whisper supported languages (99 languages from tokenizer)
-        let whisper_languages: Vec<String> = vec![
-            "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar",
-            "sv", "it", "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu",
-            "ta", "no", "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa",
-            "lv", "bn", "sr", "az", "sl", "kn", "et", "mk", "br", "eu", "is", "hy", "ne", "mn",
-            "bs", "kk", "sq", "sw", "gl", "mr", "pa", "si", "km", "sn", "yo", "so", "af", "oc",
-            "ka", "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo", "ht", "ps", "tk", "nn",
-            "mt", "sa", "lb", "my", "bo", "tl", "mg", "as", "tt", "haw", "ln", "ha", "ba", "jw",
-            "su", "yue",
-        ]
-        .into_iter()
-        .map(String::from)
-        .collect();
+        let whisper_languages: Vec<String> =
+            WHISPER_LANGUAGES.iter().map(|c| c.to_string()).collect();
 
-        // OpenAI publishes no language list for gpt-transcribe; Whisper's is
-        // the closest known set.
-        available_models.insert(
-            OPENAI_CLOUD_MODEL_ID.to_string(),
-            ModelInfo {
-                id: OPENAI_CLOUD_MODEL_ID.to_string(),
-                name: "OpenAI GPT-Transcribe".to_string(),
-                description: "Transcribes in the cloud with your OpenAI API key.".to_string(),
-                filename: String::new(),
-                source: ModelSource::Cloud,
-                size_mb: 0,
-                is_downloaded: true,
-                is_downloading: false,
-                partial_size: 0,
-                accuracy_score: 0.95,
-                speed_score: 0.8,
-                supports_translation: false,
-                is_recommended: false,
-                supported_languages: whisper_languages.clone(),
-                supports_language_selection: true,
-                is_custom: false,
-                supports_streaming: false,
-                supports_language_detection: true,
-            },
-        );
-
-        // Streams while recording; it returns no detected language.
-        available_models.insert(
-            OPENAI_LIVE_CLOUD_MODEL_ID.to_string(),
-            ModelInfo {
-                id: OPENAI_LIVE_CLOUD_MODEL_ID.to_string(),
-                name: "OpenAI GPT-Live-Transcribe".to_string(),
-                description: "Transcribes in the cloud as you speak, with your OpenAI API key."
-                    .to_string(),
-                filename: String::new(),
-                source: ModelSource::Cloud,
-                size_mb: 0,
-                is_downloaded: true,
-                is_downloading: false,
-                partial_size: 0,
-                accuracy_score: 0.9,
-                speed_score: 0.95,
-                supports_translation: false,
-                is_recommended: false,
-                supported_languages: whisper_languages.clone(),
-                supports_language_selection: true,
-                is_custom: false,
-                supports_streaming: true,
-                supports_language_detection: false,
-            },
-        );
-
-        // Streams while recording. With Auto it runs multilingual and reports
-        // the languages it heard.
-        available_models.insert(
-            DEEPGRAM_NOVA3_MODEL_ID.to_string(),
-            ModelInfo {
-                id: DEEPGRAM_NOVA3_MODEL_ID.to_string(),
-                name: "Deepgram Nova-3".to_string(),
-                description: "Transcribes in the cloud as you speak, with your Deepgram API key."
-                    .to_string(),
-                filename: String::new(),
-                source: ModelSource::Cloud,
-                size_mb: 0,
-                is_downloaded: true,
-                is_downloading: false,
-                partial_size: 0,
-                accuracy_score: 0.9,
-                speed_score: 0.95,
-                supports_translation: false,
-                is_recommended: false,
-                supported_languages: crate::deepgram_transcription::SUPPORTED_LANGUAGES
-                    .iter()
-                    .map(|code| code.to_string())
-                    .collect(),
-                supports_language_selection: true,
-                is_custom: false,
-                supports_streaming: true,
-                supports_language_detection: true,
-            },
-        );
+        for model in CLOUD_MODELS {
+            available_models.insert(model.id.to_string(), model.info());
+        }
 
         available_models.insert(
             "small".to_string(),
@@ -1444,7 +1450,7 @@ impl ModelManager {
 
         for model in models.values_mut() {
             // Nothing on disk to check: a cloud model is always available.
-            if matches!(model.source, ModelSource::Cloud) {
+            if matches!(model.source, ModelSource::Cloud { .. }) {
                 continue;
             }
             if let ModelSource::HuggingFace { repo_id, revision } = &model.source {
@@ -2405,7 +2411,7 @@ impl ModelManager {
                     .download_hf_model(&model_info, repo_id.clone(), revision.clone())
                     .await;
             }
-            ModelSource::Local | ModelSource::Cloud => {
+            ModelSource::Local | ModelSource::Cloud { .. } => {
                 return Err(anyhow::anyhow!("No download source for model"));
             }
         };
@@ -2509,7 +2515,7 @@ impl ModelManager {
 
         debug!("ModelManager: Found model info: {:?}", model_info);
 
-        if matches!(model_info.source, ModelSource::Cloud) {
+        if matches!(model_info.source, ModelSource::Cloud { .. }) {
             return Err(anyhow::anyhow!("A cloud model has nothing to delete"));
         }
 
@@ -2644,7 +2650,7 @@ impl ModelManager {
             .get_model_info(model_id)
             .ok_or_else(|| anyhow::anyhow!("Model not found: {}", model_id))?;
 
-        if matches!(model_info.source, ModelSource::Cloud) {
+        if matches!(model_info.source, ModelSource::Cloud { .. }) {
             return Err(anyhow::anyhow!("A cloud model has no file: {}", model_id));
         }
 

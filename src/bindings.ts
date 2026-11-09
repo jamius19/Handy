@@ -1277,6 +1277,10 @@ export type ChineseScript =
  */
 "traditional_hk"
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
+/**
+ * The API a cloud model runs on.
+ */
+export type CloudProvider = "OpenAi" | "Deepgram"
 export type CustomSounds = { start: boolean; stop: boolean }
 export type GpuDeviceOption = { id: string; name: string; total_vram_mb: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean; 
@@ -1406,10 +1410,10 @@ sha256: string | null } } |
  */
 "Local" | 
 /**
- * Runs on a cloud API, not on this computer: nothing to download, load
- * or delete.
+ * Runs on `provider`'s API, not on this computer: nothing to download,
+ * load or delete.
  */
-"Cloud"
+{ Cloud: { provider: CloudProvider } }
 export type ModelUnloadTimeout = "never" | "immediately" | "min_2" | "min_5" | "min_10" | "min_15" | "hour_1" | "sec_15"
 export type Notice = { code: NoticeCode; level: NoticeLevel; source: NoticeSource; 
 /**

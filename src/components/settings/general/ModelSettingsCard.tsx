@@ -7,12 +7,20 @@ import { CloudApiKey } from "../CloudApiKey";
 import { DeepgramApiKey } from "../DeepgramApiKey";
 import { LiveTranscribeDelay } from "../LiveTranscribeDelay";
 import {
-  DEEPGRAM_MODEL_ID,
-  isCloudModel,
+  cloudProviderOf,
   LIVE_CLOUD_MODEL_ID,
 } from "../../shared/modelTable/tableModel";
 import { useModelStore } from "../../../stores/modelStore";
-import type { ModelInfo } from "@/bindings";
+import type { CloudProvider, ModelInfo } from "@/bindings";
+
+/** Each provider's API key field. A new provider won't compile until added. */
+const API_KEY_FIELDS: Record<
+  CloudProvider,
+  React.FC<{ descriptionMode?: "inline" | "tooltip"; grouped?: boolean }>
+> = {
+  OpenAi: CloudApiKey,
+  Deepgram: DeepgramApiKey,
+};
 
 export const ModelSettingsCard: React.FC = () => {
   const { t } = useTranslation();
@@ -23,12 +31,12 @@ export const ModelSettingsCard: React.FC = () => {
   const showLanguageSelector =
     currentModelInfo?.supports_language_selection ?? false;
   const supportsTranslation = currentModelInfo?.supports_translation ?? false;
-  const isCloud = !!currentModelInfo && isCloudModel(currentModelInfo);
+  const provider = currentModelInfo ? cloudProviderOf(currentModelInfo) : null;
+  const ApiKeyField = provider ? API_KEY_FIELDS[provider] : null;
   // Only GPT-Live-Transcribe has a delay.
   const isLiveCloud = currentModelInfo?.id === LIVE_CLOUD_MODEL_ID;
-  // Deepgram has its own key; the OpenAI models share post-processing's.
-  const isDeepgram = currentModelInfo?.id === DEEPGRAM_MODEL_ID;
-  const hasAnySettings = showLanguageSelector || supportsTranslation || isCloud;
+  const hasAnySettings =
+    showLanguageSelector || supportsTranslation || !!ApiKeyField;
 
   // Don't render anything if no model is selected or no settings available
   if (!currentModel || !currentModelInfo || !hasAnySettings) {
@@ -41,12 +49,7 @@ export const ModelSettingsCard: React.FC = () => {
         model: currentModelInfo.name,
       })}
     >
-      {isCloud &&
-        (isDeepgram ? (
-          <DeepgramApiKey descriptionMode="tooltip" grouped={true} />
-        ) : (
-          <CloudApiKey descriptionMode="tooltip" grouped={true} />
-        ))}
+      {ApiKeyField && <ApiKeyField descriptionMode="tooltip" grouped={true} />}
       {isLiveCloud && (
         <LiveTranscribeDelay descriptionMode="tooltip" grouped={true} />
       )}

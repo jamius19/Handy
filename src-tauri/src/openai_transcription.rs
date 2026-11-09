@@ -7,18 +7,16 @@
 //! dictation and background jobs whenever it is the selected model. It also
 //! stands in for `gpt-live-transcribe` when that has no live result.
 
-use crate::audio_toolkit::OutputLanguageEvidence;
+use crate::audio_toolkit::{encode_wav, OutputLanguageEvidence};
 use crate::cloud_live_transcription::LiveText;
 use crate::language_detection::{LanguageDecision, LanguageSource};
 use crate::llm_client::{report_reqwest_error, shared_client};
 use crate::managers::transcription::{post_process_transcription_text, Transcription};
 use crate::settings::{get_settings, AppSettings};
 use anyhow::{anyhow, Result};
-use hound::{WavSpec, WavWriter};
 use log::info;
 use reqwest::multipart::{Form, Part};
 use serde::Deserialize;
-use std::io::Cursor;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
@@ -200,21 +198,4 @@ fn finish(
             source: LanguageSource::Model,
         }),
     }
-}
-
-/// 16-bit PCM WAV bytes, the same format Handy saves recordings in.
-pub(crate) fn encode_wav(samples: &[f32]) -> Result<Vec<u8>> {
-    let spec = WavSpec {
-        channels: 1,
-        sample_rate: 16_000,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
-    };
-    let mut cursor = Cursor::new(Vec::new());
-    let mut writer = WavWriter::new(&mut cursor, spec)?;
-    for sample in samples {
-        writer.write_sample((sample * i16::MAX as f32) as i16)?;
-    }
-    writer.finalize()?;
-    Ok(cursor.into_inner())
 }
