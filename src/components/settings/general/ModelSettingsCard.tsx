@@ -6,6 +6,7 @@ import { TranslateToEnglish } from "../TranslateToEnglish";
 import { CloudApiKey } from "../CloudApiKey";
 import { DeepgramApiKey } from "../DeepgramApiKey";
 import { OpenRouterSettings } from "../OpenRouterSettings";
+import { VercelGatewaySettings } from "../VercelGatewaySettings";
 import { LiveTranscribeDelay } from "../LiveTranscribeDelay";
 import {
   cloudProviderOf,
@@ -14,14 +15,21 @@ import {
 import { useModelStore } from "../../../stores/modelStore";
 import type { CloudProvider, ModelInfo } from "@/bindings";
 
-/** Each provider's API key field. A new provider won't compile until added. */
+/** Each provider's settings fields (its API key, and its model picker where
+ * it has one). A new provider won't compile until added. `modelId` tells a
+ * provider with several models which one is selected. */
 const API_KEY_FIELDS: Record<
   CloudProvider,
-  React.FC<{ descriptionMode?: "inline" | "tooltip"; grouped?: boolean }>
+  React.FC<{
+    descriptionMode?: "inline" | "tooltip";
+    grouped?: boolean;
+    modelId?: string;
+  }>
 > = {
   OpenAi: CloudApiKey,
   Deepgram: DeepgramApiKey,
   OpenRouter: OpenRouterSettings,
+  VercelGateway: VercelGatewaySettings,
 };
 
 export const ModelSettingsCard: React.FC = () => {
@@ -51,7 +59,13 @@ export const ModelSettingsCard: React.FC = () => {
         model: currentModelInfo.name,
       })}
     >
-      {ApiKeyField && <ApiKeyField descriptionMode="tooltip" grouped={true} />}
+      {ApiKeyField && (
+        <ApiKeyField
+          descriptionMode="tooltip"
+          grouped={true}
+          modelId={currentModelInfo.id}
+        />
+      )}
       {isLiveCloud && (
         <LiveTranscribeDelay descriptionMode="tooltip" grouped={true} />
       )}

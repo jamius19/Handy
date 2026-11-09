@@ -187,6 +187,12 @@ const settingUpdaters: {
     commands.changeDeepgramApiKeySetting(value as string),
   openrouter_transcription_model: (value) =>
     commands.changeOpenrouterTranscriptionModelSetting(value as string),
+  vercel_ai_gateway_api_key: (value) =>
+    commands.changeVercelAiGatewayApiKeySetting(value as string),
+  vercel_transcription_model: (value) =>
+    commands.changeVercelTranscriptionModelSetting(value as string),
+  vercel_live_transcription_model: (value) =>
+    commands.changeVercelLiveTranscriptionModelSetting(value as string),
   mute_while_recording: (value) =>
     commands.changeMuteWhileRecordingSetting(value as boolean),
   append_trailing_space: (value) =>

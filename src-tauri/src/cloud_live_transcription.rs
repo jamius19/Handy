@@ -6,11 +6,13 @@
 //! The live session a streaming cloud model runs while the recording goes:
 //! audio is sent as it is recorded and the final transcript comes back once
 //! the recording stops. Each provider runs its own WebSocket session
-//! (`openai_live_transcription.rs`, `deepgram_live_transcription.rs`).
+//! (`openai_live_transcription.rs`, `deepgram_live_transcription.rs`,
+//! `vercel_live_transcription.rs`).
 
 use crate::deepgram_live_transcription;
 use crate::managers::model::CloudProvider;
 use crate::openai_live_transcription;
+use crate::vercel_live_transcription;
 use anyhow::{anyhow, Result};
 use log::{debug, warn};
 use tauri::AppHandle;
@@ -59,6 +61,9 @@ impl LiveTranscription {
                 // Its row says it doesn't stream, so no session starts for it.
                 CloudProvider::OpenRouter => {
                     Err(anyhow!("OpenRouter models don't transcribe live"))
+                }
+                CloudProvider::VercelGateway => {
+                    vercel_live_transcription::run(&app, rx, &mut reply, on_text).await
                 }
             };
             match (reply, result) {

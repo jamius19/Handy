@@ -11,6 +11,7 @@ use crate::managers::model::{cloud_provider, CloudProvider};
 use crate::managers::transcription::Transcription;
 use crate::openai_transcription;
 use crate::openrouter_transcription;
+use crate::vercel_transcription;
 use anyhow::{anyhow, Result};
 use log::{info, warn};
 use tauri::AppHandle;
@@ -27,6 +28,7 @@ pub async fn transcribe(app: &AppHandle, model_id: &str, samples: &[f32]) -> Res
         CloudProvider::OpenAi => openai_transcription::transcribe(app, samples).await,
         CloudProvider::Deepgram => deepgram_transcription::transcribe(app, samples).await,
         CloudProvider::OpenRouter => openrouter_transcription::transcribe(app, samples).await,
+        CloudProvider::VercelGateway => vercel_transcription::transcribe(app, samples).await,
     }
 }
 
@@ -48,6 +50,7 @@ pub async fn transcribe_recording(
                     CloudProvider::OpenAi => openai_transcription::finish_live(app, live),
                     CloudProvider::Deepgram => deepgram_transcription::finish_live(app, live),
                     CloudProvider::OpenRouter => openrouter_transcription::finish_live(app, live),
+                    CloudProvider::VercelGateway => vercel_transcription::finish_live(app, live),
                 });
             }
             Ok(Ok(_)) => info!("Live transcription produced no text; retrying in one request"),

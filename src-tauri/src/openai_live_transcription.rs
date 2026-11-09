@@ -205,12 +205,12 @@ where
 /// 16 kHz to 24 kHz PCM16 by linear interpolation: three samples out for
 /// every two in, across chunk boundaries.
 #[derive(Default)]
-struct Upsampler {
+pub(crate) struct Upsampler {
     pending: Vec<f32>,
 }
 
 impl Upsampler {
-    fn push(&mut self, pcm: &[f32]) -> Vec<i16> {
+    pub(crate) fn push(&mut self, pcm: &[f32]) -> Vec<i16> {
         self.pending.extend_from_slice(pcm);
         let mut out = Vec::with_capacity(self.pending.len() * 3 / 2);
         // Each pair needs the sample after it to interpolate toward.
@@ -225,7 +225,7 @@ impl Upsampler {
     }
 
     /// The last one or two samples, with nothing after them.
-    fn flush(&mut self) -> Vec<i16> {
+    pub(crate) fn flush(&mut self) -> Vec<i16> {
         let out = match self.pending.as_slice() {
             [a, b] => vec![*a, a + (b - a) * 2.0 / 3.0, *b],
             [a] => vec![*a],

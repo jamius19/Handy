@@ -28,6 +28,9 @@ export const CLOUD_MODEL_ID = "openai-gpt-transcribe";
 /** The streaming OpenAI cloud model's id (`OPENAI_LIVE_CLOUD_MODEL_ID` in Rust). */
 export const LIVE_CLOUD_MODEL_ID = "openai-gpt-live-transcribe";
 
+/** The streaming Vercel AI Gateway model's id (`VERCEL_LIVE_CLOUD_MODEL_ID` in Rust). */
+export const VERCEL_LIVE_CLOUD_MODEL_ID = "vercel-ai-gateway-live";
+
 // Extract a GGUF quantization label from a filename, if present (e.g. "Q8_0").
 const quantOf = (filename: string): string | null => {
   const match = filename.match(

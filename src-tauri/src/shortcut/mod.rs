@@ -1295,6 +1295,52 @@ pub async fn fetch_openrouter_transcription_models(app: AppHandle) -> Result<Vec
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_vercel_ai_gateway_api_key_setting(
+    app: AppHandle,
+    api_key: String,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.vercel_ai_gateway_api_key = settings::SecretString::new(api_key.trim().to_string());
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_vercel_transcription_model_setting(
+    app: AppHandle,
+    model: String,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.vercel_transcription_model = model.trim().to_string();
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_vercel_live_transcription_model_setting(
+    app: AppHandle,
+    model: String,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.vercel_live_transcription_model = model.trim().to_string();
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+/// The ids of the AI Gateway's transcription models, for the Vercel AI
+/// Gateway cloud models' pickers; with `streaming`, only those that stream.
+#[tauri::command]
+#[specta::specta]
+pub async fn fetch_vercel_transcription_models(streaming: bool) -> Result<Vec<String>, String> {
+    crate::vercel_transcription::fetch_models(streaming)
+        .await
+        .map_err(|e| format!("{e:#}"))
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn change_openai_live_transcribe_delay_setting(
     app: AppHandle,
     delay: LiveTranscribeDelay,

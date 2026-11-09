@@ -38,6 +38,8 @@ mod transcription_hook;
 mod tray;
 mod tray_i18n;
 mod utils;
+mod vercel_live_transcription;
+mod vercel_transcription;
 pub mod webkit_renderer;
 
 pub use cli::CliArgs;
@@ -735,6 +737,10 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_deepgram_api_key_setting,
             shortcut::change_openrouter_transcription_model_setting,
             shortcut::fetch_openrouter_transcription_models,
+            shortcut::change_vercel_ai_gateway_api_key_setting,
+            shortcut::change_vercel_transcription_model_setting,
+            shortcut::change_vercel_live_transcription_model_setting,
+            shortcut::fetch_vercel_transcription_models,
             shortcut::set_post_process_provider,
             shortcut::fetch_post_process_models,
             shortcut::add_post_process_prompt,

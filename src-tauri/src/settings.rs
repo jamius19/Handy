@@ -526,6 +526,17 @@ pub struct AppSettings {
     /// OpenRouter cloud model transcribes with.
     #[serde(default = "default_openrouter_transcription_model")]
     pub openrouter_transcription_model: String,
+    /// The key both Vercel AI Gateway cloud models transcribe with.
+    #[serde(default)]
+    pub vercel_ai_gateway_api_key: SecretString,
+    /// The AI Gateway model id (e.g. "openai/whisper-1") the Vercel AI
+    /// Gateway cloud model transcribes with.
+    #[serde(default = "default_vercel_transcription_model")]
+    pub vercel_transcription_model: String,
+    /// The streaming AI Gateway model id the Vercel AI Gateway Live cloud
+    /// model transcribes with.
+    #[serde(default = "default_vercel_live_transcription_model")]
+    pub vercel_live_transcription_model: String,
     #[serde(default = "default_overlay_position")]
     pub overlay_position: OverlayPosition,
     #[serde(default = "default_debug_mode")]
@@ -699,6 +710,14 @@ fn default_selected_language() -> String {
 
 fn default_openrouter_transcription_model() -> String {
     "openai/whisper-large-v3-turbo".to_string()
+}
+
+fn default_vercel_transcription_model() -> String {
+    "openai/whisper-1".to_string()
+}
+
+fn default_vercel_live_transcription_model() -> String {
+    "openai/gpt-live-transcribe".to_string()
 }
 
 fn default_overlay_position() -> OverlayPosition {
@@ -1083,6 +1102,9 @@ pub fn get_default_settings() -> AppSettings {
         openai_live_transcribe_delay: LiveTranscribeDelay::default(),
         deepgram_api_key: SecretString::default(),
         openrouter_transcription_model: default_openrouter_transcription_model(),
+        vercel_ai_gateway_api_key: SecretString::default(),
+        vercel_transcription_model: default_vercel_transcription_model(),
+        vercel_live_transcription_model: default_vercel_live_transcription_model(),
         selected_microphone: None,
         selected_channel: None,
         clamshell_microphone: None,

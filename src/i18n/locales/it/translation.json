@@ -357,6 +357,32 @@
         "refresh": "Refresh models",
         "fetchFailed": "Couldn't Load OpenRouter Models"
       },
+      "vercelApiKey": {
+        "title": "AI Gateway API Key",
+        "description": "Your recordings are sent to Vercel AI Gateway to transcribe with the model you pick. Both Vercel AI Gateway models use this key.",
+        "placeholder": "Paste your AI Gateway API key"
+      },
+      "vercelModel": {
+        "title": "AI Gateway Model",
+        "description": "The AI Gateway transcription model your recordings are sent to. Pick one from the list or type its id.",
+        "placeholder": "Pick or type a model id",
+        "refresh": "Refresh models",
+        "fetchFailed": "Couldn't Load AI Gateway Models"
+      },
+      "vercelLiveModel": {
+        "title": "AI Gateway Model",
+        "description": "The AI Gateway model that transcribes as you speak. The list shows only models that stream.",
+        "placeholder": "Pick or type a model id",
+        "refresh": "Refresh models",
+        "fetchFailed": "Couldn't Load AI Gateway Models"
+      },
+      "vercelFallbackModel": {
+        "title": "Fallback Model",
+        "description": "The AI Gateway model used when live transcription fails and for file transcription. It's the Vercel AI Gateway model's model too.",
+        "placeholder": "Pick or type a model id",
+        "refresh": "Refresh models",
+        "fetchFailed": "Couldn't Load AI Gateway Models"
+      },
       "liveDelay": {
         "title": "Transcription Delay",
         "description": "How long GPT-Live-Transcribe waits for more speech before it writes text. Lower shows words sooner; higher is more accurate.",

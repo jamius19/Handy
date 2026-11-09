@@ -352,6 +352,42 @@ async fetchOpenrouterTranscriptionModels() : Promise<Result<string[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async changeVercelAiGatewayApiKeySetting(apiKey: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_vercel_ai_gateway_api_key_setting", { apiKey }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeVercelTranscriptionModelSetting(model: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_vercel_transcription_model_setting", { model }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeVercelLiveTranscriptionModelSetting(model: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_vercel_live_transcription_model_setting", { model }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The ids of the AI Gateway's transcription models, for the Vercel AI
+ * Gateway cloud models' pickers; with `streaming`, only those that stream.
+ */
+async fetchVercelTranscriptionModels(streaming: boolean) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("fetch_vercel_transcription_models", { streaming }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async setPostProcessProvider(providerId: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("set_post_process_provider", { providerId }) };
@@ -1209,7 +1245,21 @@ deepgram_api_key?: SecretString;
  * The OpenRouter model id (e.g. "openai/whisper-large-v3-turbo") the
  * OpenRouter cloud model transcribes with.
  */
-openrouter_transcription_model?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; 
+openrouter_transcription_model?: string; 
+/**
+ * The key both Vercel AI Gateway cloud models transcribe with.
+ */
+vercel_ai_gateway_api_key?: SecretString; 
+/**
+ * The AI Gateway model id (e.g. "openai/whisper-1") the Vercel AI
+ * Gateway cloud model transcribes with.
+ */
+vercel_transcription_model?: string; 
+/**
+ * The streaming AI Gateway model id the Vercel AI Gateway Live cloud
+ * model transcribes with.
+ */
+vercel_live_transcription_model?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; 
 /**
  * Reasoning level per provider id; a provider without one is Off.
  */
@@ -1305,7 +1355,7 @@ export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
 /**
  * The API a cloud model runs on.
  */
-export type CloudProvider = "OpenAi" | "Deepgram" | "OpenRouter"
+export type CloudProvider = "OpenAi" | "Deepgram" | "OpenRouter" | "VercelGateway"
 export type CustomSounds = { start: boolean; stop: boolean }
 export type GpuDeviceOption = { id: string; name: string; total_vram_mb: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean; 

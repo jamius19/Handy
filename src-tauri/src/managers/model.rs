@@ -60,12 +60,21 @@ pub const DEEPGRAM_NOVA3_MODEL_ID: &str = "deepgram-nova-3";
 /// `openrouter_transcription.rs`).
 pub const OPENROUTER_CLOUD_MODEL_ID: &str = "openrouter-transcribe";
 
+/// Runs the Vercel AI Gateway transcription model picked in settings in one
+/// request (see `vercel_transcription.rs`).
+pub const VERCEL_CLOUD_MODEL_ID: &str = "vercel-ai-gateway";
+
+/// Streams to the Vercel AI Gateway model picked in settings while the
+/// recording goes (see `vercel_live_transcription.rs`).
+pub const VERCEL_LIVE_CLOUD_MODEL_ID: &str = "vercel-ai-gateway-live";
+
 /// The API a cloud model runs on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum CloudProvider {
     OpenAi,
     Deepgram,
     OpenRouter,
+    VercelGateway,
 }
 
 /// Whisper's languages (99, from its tokenizer).
@@ -146,6 +155,31 @@ pub const CLOUD_MODELS: &[CloudModel] = &[
         accuracy_score: 0.9,
         speed_score: 0.8,
         streams: false,
+        detects_language: true,
+        languages: WHISPER_LANGUAGES,
+    },
+    // The gateway lists no languages per model either. Whether a model
+    // streams is fixed per row, so the streaming models get a row of their
+    // own. Most of its models report the language they heard.
+    CloudModel {
+        id: VERCEL_CLOUD_MODEL_ID,
+        provider: CloudProvider::VercelGateway,
+        name: "Vercel AI Gateway",
+        description: "Transcribes in the cloud with the AI Gateway model you pick, using your AI Gateway API key.",
+        accuracy_score: 0.9,
+        speed_score: 0.8,
+        streams: false,
+        detects_language: true,
+        languages: WHISPER_LANGUAGES,
+    },
+    CloudModel {
+        id: VERCEL_LIVE_CLOUD_MODEL_ID,
+        provider: CloudProvider::VercelGateway,
+        name: "Vercel AI Gateway Live",
+        description: "Transcribes in the cloud as you speak, with your AI Gateway API key.",
+        accuracy_score: 0.9,
+        speed_score: 0.95,
+        streams: true,
         detects_language: true,
         languages: WHISPER_LANGUAGES,
     },

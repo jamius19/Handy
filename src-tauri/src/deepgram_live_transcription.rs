@@ -256,7 +256,7 @@ where
 
 /// `next` after `text`, with a space between unless either side is written
 /// without spaces (Chinese, Japanese).
-fn joined(text: &str, next: &str) -> String {
+pub(crate) fn joined(text: &str, next: &str) -> String {
     let (Some(last), Some(first)) = (text.chars().last(), next.chars().next()) else {
         return format!("{text}{next}");
     };
