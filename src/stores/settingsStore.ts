@@ -185,6 +185,8 @@ const settingUpdaters: {
     ),
   deepgram_api_key: (value) =>
     commands.changeDeepgramApiKeySetting(value as string),
+  openrouter_transcription_model: (value) =>
+    commands.changeOpenrouterTranscriptionModelSetting(value as string),
   mute_while_recording: (value) =>
     commands.changeMuteWhileRecordingSetting(value as boolean),
   append_trailing_space: (value) =>

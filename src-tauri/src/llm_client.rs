@@ -348,12 +348,10 @@ impl AnthropicMessagesResponse {
     }
 }
 
-/// Build headers for API requests based on provider type
-fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<HeaderMap, String> {
+/// Headers naming Handy to an API; OpenRouter shows them as the app a
+/// request came from.
+pub(crate) fn app_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
-
-    // Common headers
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers.insert(
         REFERER,
         HeaderValue::from_static("https://github.com/cjpais/Handy"),
@@ -363,6 +361,15 @@ fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<Header
         HeaderValue::from_static("Handy/1.0 (+https://github.com/cjpais/Handy)"),
     );
     headers.insert("X-Title", HeaderValue::from_static("Handy"));
+    headers
+}
+
+/// Build headers for API requests based on provider type
+fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<HeaderMap, String> {
+    let mut headers = app_headers();
+
+    // Common headers
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
     // Provider-specific auth headers
     if !api_key.is_empty() {

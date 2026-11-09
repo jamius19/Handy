@@ -56,6 +56,10 @@ impl LiveTranscription {
                 CloudProvider::Deepgram => {
                     deepgram_live_transcription::run(&app, rx, &mut reply, on_text).await
                 }
+                // Its row says it doesn't stream, so no session starts for it.
+                CloudProvider::OpenRouter => {
+                    Err(anyhow!("OpenRouter models don't transcribe live"))
+                }
             };
             match (reply, result) {
                 (Some(reply), result) => {

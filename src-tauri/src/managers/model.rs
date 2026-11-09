@@ -56,15 +56,20 @@ pub const OPENAI_LIVE_CLOUD_MODEL_ID: &str = "openai-gpt-live-transcribe";
 /// otherwise (see `deepgram_transcription.rs`).
 pub const DEEPGRAM_NOVA3_MODEL_ID: &str = "deepgram-nova-3";
 
+/// Runs the OpenRouter transcription model picked in settings (see
+/// `openrouter_transcription.rs`).
+pub const OPENROUTER_CLOUD_MODEL_ID: &str = "openrouter-transcribe";
+
 /// The API a cloud model runs on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum CloudProvider {
     OpenAi,
     Deepgram,
+    OpenRouter,
 }
 
 /// Whisper's languages (99, from its tokenizer).
-const WHISPER_LANGUAGES: &[&str] = &[
+pub(crate) const WHISPER_LANGUAGES: &[&str] = &[
     "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar", "sv", "it",
     "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu", "ta", "no", "th", "ur",
     "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa", "lv", "bn", "sr", "az", "sl", "kn",
@@ -128,6 +133,21 @@ pub const CLOUD_MODELS: &[CloudModel] = &[
         streams: true,
         detects_language: true,
         languages: crate::deepgram_transcription::SUPPORTED_LANGUAGES,
+    },
+    // OpenRouter lists no languages per model; most of its transcription
+    // models are Whisper or cover Whisper's set. With Auto the model detects
+    // the language, though it doesn't say which: some reject `verbose_json`,
+    // the only response that names it.
+    CloudModel {
+        id: OPENROUTER_CLOUD_MODEL_ID,
+        provider: CloudProvider::OpenRouter,
+        name: "OpenRouter",
+        description: "Transcribes in the cloud with the OpenRouter model you pick, using your OpenRouter API key.",
+        accuracy_score: 0.9,
+        speed_score: 0.8,
+        streams: false,
+        detects_language: true,
+        languages: WHISPER_LANGUAGES,
     },
 ];
 

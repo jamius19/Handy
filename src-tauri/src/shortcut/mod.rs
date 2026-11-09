@@ -1273,6 +1273,28 @@ pub fn change_deepgram_api_key_setting(app: AppHandle, api_key: String) -> Resul
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_openrouter_transcription_model_setting(
+    app: AppHandle,
+    model: String,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.openrouter_transcription_model = model.trim().to_string();
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+/// The ids of OpenRouter's transcription models, for the OpenRouter cloud
+/// model's picker.
+#[tauri::command]
+#[specta::specta]
+pub async fn fetch_openrouter_transcription_models(app: AppHandle) -> Result<Vec<String>, String> {
+    crate::openrouter_transcription::fetch_models(&app)
+        .await
+        .map_err(|e| format!("{e:#}"))
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn change_openai_live_transcribe_delay_setting(
     app: AppHandle,
     delay: LiveTranscribeDelay,

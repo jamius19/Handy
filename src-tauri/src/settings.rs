@@ -522,6 +522,10 @@ pub struct AppSettings {
     /// The key the Deepgram Nova-3 cloud model transcribes with.
     #[serde(default)]
     pub deepgram_api_key: SecretString,
+    /// The OpenRouter model id (e.g. "openai/whisper-large-v3-turbo") the
+    /// OpenRouter cloud model transcribes with.
+    #[serde(default = "default_openrouter_transcription_model")]
+    pub openrouter_transcription_model: String,
     #[serde(default = "default_overlay_position")]
     pub overlay_position: OverlayPosition,
     #[serde(default = "default_debug_mode")]
@@ -691,6 +695,10 @@ fn default_whats_new_last_seen_version() -> String {
 
 fn default_selected_language() -> String {
     "auto".to_string()
+}
+
+fn default_openrouter_transcription_model() -> String {
+    "openai/whisper-large-v3-turbo".to_string()
 }
 
 fn default_overlay_position() -> OverlayPosition {
@@ -1074,6 +1082,7 @@ pub fn get_default_settings() -> AppSettings {
         spoken_languages: Vec::new(),
         openai_live_transcribe_delay: LiveTranscribeDelay::default(),
         deepgram_api_key: SecretString::default(),
+        openrouter_transcription_model: default_openrouter_transcription_model(),
         selected_microphone: None,
         selected_channel: None,
         clamshell_microphone: None,

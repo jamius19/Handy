@@ -5,6 +5,7 @@ import { LanguageSelector } from "../LanguageSelector";
 import { TranslateToEnglish } from "../TranslateToEnglish";
 import { CloudApiKey } from "../CloudApiKey";
 import { DeepgramApiKey } from "../DeepgramApiKey";
+import { OpenRouterSettings } from "../OpenRouterSettings";
 import { LiveTranscribeDelay } from "../LiveTranscribeDelay";
 import {
   cloudProviderOf,
@@ -20,6 +21,7 @@ const API_KEY_FIELDS: Record<
 > = {
   OpenAi: CloudApiKey,
   Deepgram: DeepgramApiKey,
+  OpenRouter: OpenRouterSettings,
 };
 
 export const ModelSettingsCard: React.FC = () => {

@@ -24,6 +24,7 @@ mod memory;
 mod notices;
 mod openai_live_transcription;
 mod openai_transcription;
+mod openrouter_transcription;
 mod overlay;
 mod paste_tx;
 pub mod portable;
@@ -732,6 +733,8 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_post_process_openrouter_provider_setting,
             shortcut::change_openai_live_transcribe_delay_setting,
             shortcut::change_deepgram_api_key_setting,
+            shortcut::change_openrouter_transcription_model_setting,
+            shortcut::fetch_openrouter_transcription_models,
             shortcut::set_post_process_provider,
             shortcut::fetch_post_process_models,
             shortcut::add_post_process_prompt,
