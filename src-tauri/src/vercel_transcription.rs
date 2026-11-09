@@ -114,6 +114,21 @@ fn language_options(model: &str, language: &str, streaming: bool) -> Option<Valu
     Some(Value::Object(by_provider))
 }
 
+/// Grok STT streams only ~3s chunks unless it is asked for interim results.
+/// The gateway names the model `spacexai/…` while the AI SDK's adapter reads
+/// `xai`, so the option goes under both; a provider ignores the other's key.
+fn with_stream_options(model: &str, streaming: bool, options: Option<Value>) -> Option<Value> {
+    let provider = model.split('/').next().unwrap_or_default();
+    if !streaming || !matches!(provider, "xai" | "spacexai") {
+        return options;
+    }
+    let mut options = options.unwrap_or_else(|| json!({}));
+    for key in ["xai", "spacexai"] {
+        options[key]["streaming"] = json!({ "interimResults": true });
+    }
+    Some(options)
+}
+
 /// What a request to the gateway asks for.
 pub(crate) struct Request {
     pub model: String,
@@ -150,6 +165,7 @@ impl Request {
             .as_deref()
             .and_then(|language| language_options(&model, language, streaming));
         let language = picked.filter(|_| provider_options.is_some());
+        let provider_options = with_stream_options(&model, streaming, provider_options);
         Ok(Self {
             model,
             language,

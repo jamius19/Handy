@@ -20,17 +20,19 @@ use crate::vercel_transcription::{
 };
 use anyhow::{anyhow, Context, Result};
 use futures_util::{Sink, SinkExt, StreamExt};
-use log::{debug, info};
+use log::{debug, info, warn};
 use reqwest::Url;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::time::Duration;
 use tauri::AppHandle;
+use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::header::SEC_WEBSOCKET_PROTOCOL;
 use tokio_tungstenite::tungstenite::{self, Message};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 const STREAM_URL: &str = "wss://ai-gateway.vercel.sh/v4/ai/transcription-model";
 /// Marks the handshake as a transcription stream; the key rides with it as
@@ -51,6 +53,10 @@ struct Part {
     text: Option<String>,
     language: Option<String>,
     error: Option<Value>,
+    #[serde(rename = "startSecond")]
+    start_second: Option<f64>,
+    #[serde(rename = "durationInSeconds")]
+    duration_in_seconds: Option<f64>,
 }
 
 /// The audio a model is sent: OpenAI's realtime models take 24 kHz PCM16,
@@ -93,15 +99,40 @@ impl Audio {
 }
 
 /// The settled text so far and the segment still being heard: its deltas,
-/// and the latest partial text.
+/// its earlier partial chunks, and the latest partial text.
 #[derive(Default)]
 struct Transcript {
     settled: String,
     deltas: String,
+    /// Partials that a later one followed on from rather than revised.
+    chunks: String,
     partial: String,
+    /// Where the latest partial starts and ends in the audio, when the part
+    /// says.
+    partial_span: Option<(f64, f64)>,
 }
 
+/// How far apart two reported times may be and still count as the same,
+/// for rounding in them.
+const CHUNK_TOLERANCE_SECONDS: f64 = 0.05;
+
 impl Transcript {
+    /// A partial revises the one before it, unless it starts later, where
+    /// that one ended: Grok STT sends each ~3s chunk of an utterance as its
+    /// own partial, so the earlier chunks are kept until the utterance's
+    /// final. A revision starts where the one it revises did (or earlier).
+    fn push_partial(&mut self, text: String, start: Option<f64>, duration: Option<f64>) {
+        if let (Some(next), Some((start, end))) = (start, self.partial_span) {
+            if next > start + CHUNK_TOLERANCE_SECONDS && next >= end - CHUNK_TOLERANCE_SECONDS {
+                self.chunks = joined(&self.chunks, self.partial.trim());
+            }
+        }
+        self.partial = text;
+        self.partial_span = start
+            .zip(duration)
+            .map(|(start, duration)| (start, start + duration));
+    }
+
     /// A delta supersedes the partial before it.
     fn push_delta(&mut self, delta: &str) {
         self.deltas.push_str(delta);
@@ -120,7 +151,8 @@ impl Transcript {
     }
 
     fn shown(&self) -> String {
-        joined(&self.settled, self.current().trim())
+        let segment = joined(&self.chunks, self.current().trim());
+        joined(&self.settled, segment.trim())
     }
 
     fn settle(&mut self, text: &str) {
@@ -129,7 +161,9 @@ impl Transcript {
             self.settled = joined(&self.settled, text);
         }
         self.deltas.clear();
+        self.chunks.clear();
         self.partial.clear();
+        self.partial_span = None;
     }
 }
 
@@ -146,6 +180,142 @@ pub(crate) async fn run(
     let request = Request::from_settings(&settings, true)?;
     let mut audio = Audio::for_model(&request.model);
 
+    let (mut sink, mut events) = connect(&api_key, &request, audio.rate()).await?.split();
+
+    let mut transcript = Transcript::default();
+    // The text last sent to the overlay.
+    let mut shown = String::new();
+    let mut finished_at: Option<Instant> = None;
+    // Every sample sent, to send again to a new stream if this one fails.
+    let mut sent: Vec<i16> = Vec::new();
+    let mut retried = false;
+    loop {
+        tokio::select! {
+            command = commands.recv(), if reply.is_none() => match command {
+                Some(Command::Audio(pcm)) => {
+                    let pcm = audio.convert(&pcm);
+                    send_audio(&mut sink, &pcm).await?;
+                    sent.extend_from_slice(&pcm);
+                }
+                Some(Command::Finish(result)) => {
+                    let pcm = audio.flush();
+                    send_audio(&mut sink, &pcm).await?;
+                    sent.extend_from_slice(&pcm);
+                    // The server transcribes what it still holds, then sends
+                    // `finish` and closes.
+                    send(&mut sink, json!({ "type": "transcription-stream.audio-done" })).await?;
+                    *reply = Some(result);
+                    finished_at = Some(Instant::now());
+                }
+                None => return Ok(None),
+            },
+            event = events.next() => {
+                let received = match event {
+                    Some(Ok(Message::Text(text))) => {
+                        // Unknown or malformed parts are skipped, as the envelope asks.
+                        let Ok(part) = serde_json::from_str::<Part>(text.as_str()) else {
+                            continue;
+                        };
+                        if part.kind == "error" {
+                            Err(anyhow!("AI Gateway stream error: {}", part_error(part.error)))
+                        } else {
+                            Ok(part)
+                        }
+                    }
+                    Some(Ok(Message::Close(frame))) => {
+                        Err(anyhow!("The AI Gateway closed the stream: {frame:?}"))
+                    }
+                    Some(Ok(_)) => continue,
+                    Some(Err(e)) => Err(anyhow!(e).context("The AI Gateway stream failed")),
+                    None => Err(anyhow!("The AI Gateway closed the stream")),
+                };
+                let part = match received {
+                    Ok(part) => part,
+                    Err(failure) => {
+                        // The provider sometimes fails a stream for no reason it gives;
+                        // a new one usually works, so retry once before giving up.
+                        if retried {
+                            return Err(failure);
+                        }
+                        retried = true;
+                        warn!(
+                            "AI Gateway live stream for {} failed ({failure:#}); reconnecting once \
+                             and resending {:.1}s of audio",
+                            request.model,
+                            sent.len() as f64 / audio.rate() as f64
+                        );
+                        (sink, events) = connect(&api_key, &request, audio.rate()).await?.split();
+                        send_audio(&mut sink, &sent).await?;
+                        if finished_at.is_some() {
+                            send(&mut sink, json!({ "type": "transcription-stream.audio-done" }))
+                                .await?;
+                        }
+                        // The new stream transcribes the recording from its start.
+                        transcript = Transcript::default();
+                        info!("AI Gateway live stream for {} reconnected", request.model);
+                        continue;
+                    }
+                };
+                match part.kind.as_str() {
+                    "transcript-delta" => {
+                        transcript.push_delta(part.delta.as_deref().unwrap_or_default());
+                        let next = transcript.shown();
+                        if !only_trims(&shown, &next) {
+                            shown = next;
+                            on_text(&shown);
+                        }
+                    }
+                    "transcript-partial" => {
+                        transcript.push_partial(
+                            part.text.unwrap_or_default(),
+                            part.start_second,
+                            part.duration_in_seconds,
+                        );
+                        let next = transcript.shown();
+                        if !only_trims(&shown, &next) {
+                            shown = next;
+                            on_text(&shown);
+                        }
+                    }
+                    "transcript-final" => {
+                        transcript.settle(part.text.as_deref().unwrap_or_default());
+                        shown = transcript.settled.clone();
+                        on_text(&shown);
+                    }
+                    "finish" => {
+                        if let Some(finished_at) = finished_at {
+                            info!(
+                                "AI Gateway live transcription finished {:.2}s after the recording stopped",
+                                finished_at.elapsed().as_secs_f64()
+                            );
+                        }
+                        // The whole transcript; the parts so far if it has none.
+                        let text = part.text.filter(|t| !t.trim().is_empty());
+                        return Ok(Some(LiveText {
+                            text: text.unwrap_or_else(|| transcript.shown()),
+                            language: part.language,
+                        }));
+                    }
+                    _ => {}
+                }
+            }
+            // Nobody waits for the result any more (the dictation was cancelled).
+            _ = closed(reply) => return Ok(None),
+            _ = tokio::time::sleep_until(
+                finished_at.unwrap_or_else(Instant::now) + FINISH_TIMEOUT
+            ), if finished_at.is_some() => {
+                return Err(anyhow!("AI Gateway live transcription timed out"));
+            }
+        }
+    }
+}
+
+/// Opens a stream to the gateway for `request`'s model and starts it.
+async fn connect(
+    api_key: &str,
+    request: &Request,
+    rate: u32,
+) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
     let url = Url::parse_with_params(STREAM_URL, [("ai-model-id", &request.model)])?;
     let mut ws_request = url.as_str().into_client_request()?;
     let headers = ws_request.headers_mut();
@@ -164,7 +334,7 @@ pub(crate) async fn run(
     headers.insert("ai-gateway-auth-method", "api-key".parse()?);
 
     let connect_started = Instant::now();
-    let (socket, _) = tokio_tungstenite::connect_async(ws_request)
+    let (mut socket, _) = tokio_tungstenite::connect_async(ws_request)
         .await
         .map_err(connect_error)?;
     debug!(
@@ -172,96 +342,25 @@ pub(crate) async fn run(
         request.model,
         connect_started.elapsed()
     );
-    let (mut sink, mut events) = socket.split();
 
     let mut start = json!({
         "type": "transcription-stream.start",
-        "inputAudioFormat": { "type": "audio/pcm", "rate": audio.rate() },
+        "inputAudioFormat": { "type": "audio/pcm", "rate": rate },
     });
     if let Some(options) = &request.provider_options {
         start["providerOptions"] = options.clone();
     }
-    send(&mut sink, start).await?;
+    send(&mut socket, start).await?;
+    Ok(socket)
+}
 
-    let mut transcript = Transcript::default();
-    let mut finished_at: Option<Instant> = None;
-    loop {
-        tokio::select! {
-            command = commands.recv(), if reply.is_none() => match command {
-                Some(Command::Audio(pcm)) => {
-                    let pcm = audio.convert(&pcm);
-                    send_audio(&mut sink, &pcm).await?;
-                }
-                Some(Command::Finish(result)) => {
-                    let pcm = audio.flush();
-                    send_audio(&mut sink, &pcm).await?;
-                    // The server transcribes what it still holds, then sends
-                    // `finish` and closes.
-                    send(&mut sink, json!({ "type": "transcription-stream.audio-done" })).await?;
-                    *reply = Some(result);
-                    finished_at = Some(Instant::now());
-                }
-                None => return Ok(None),
-            },
-            event = events.next() => {
-                let text = match event {
-                    Some(Ok(Message::Text(text))) => text,
-                    Some(Ok(Message::Close(frame))) => {
-                        return Err(anyhow!("The AI Gateway closed the stream: {frame:?}"));
-                    }
-                    Some(Ok(_)) => continue,
-                    Some(Err(e)) => return Err(e).context("The AI Gateway stream failed"),
-                    None => return Err(anyhow!("The AI Gateway closed the stream")),
-                };
-                // Unknown or malformed parts are skipped, as the envelope asks.
-                let Ok(part) = serde_json::from_str::<Part>(text.as_str()) else {
-                    continue;
-                };
-                match part.kind.as_str() {
-                    "transcript-delta" => {
-                        transcript.push_delta(part.delta.as_deref().unwrap_or_default());
-                        on_text(&transcript.shown());
-                    }
-                    "transcript-partial" => {
-                        transcript.partial = part.text.unwrap_or_default();
-                        on_text(&transcript.shown());
-                    }
-                    "transcript-final" => {
-                        transcript.settle(part.text.as_deref().unwrap_or_default());
-                        on_text(&transcript.settled);
-                    }
-                    "finish" => {
-                        if let Some(finished_at) = finished_at {
-                            info!(
-                                "AI Gateway live transcription finished {:.2}s after the recording stopped",
-                                finished_at.elapsed().as_secs_f64()
-                            );
-                        }
-                        // The whole transcript; the parts so far if it has none.
-                        let text = part.text.filter(|t| !t.trim().is_empty());
-                        return Ok(Some(LiveText {
-                            text: text.unwrap_or_else(|| transcript.shown()),
-                            language: part.language,
-                        }));
-                    }
-                    "error" => {
-                        return Err(anyhow!(
-                            "AI Gateway stream error: {}",
-                            part_error(part.error)
-                        ));
-                    }
-                    _ => {}
-                }
-            }
-            // Nobody waits for the result any more (the dictation was cancelled).
-            _ = closed(reply) => return Ok(None),
-            _ = tokio::time::sleep_until(
-                finished_at.unwrap_or_else(Instant::now) + FINISH_TIMEOUT
-            ), if finished_at.is_some() => {
-                return Err(anyhow!("AI Gateway live transcription timed out"));
-            }
-        }
-    }
+/// Whether `next` only cuts words off the end of `shown`. Such text isn't
+/// shown while the stream goes, as the cut words come straight back: Grok STT
+/// ends a chunk short of the guess before it and sends the rest with the next
+/// chunk, and Microsoft MAI sends settled words as a delta just before the
+/// partial with the rest. The final is always shown.
+fn only_trims(shown: &str, next: &str) -> bool {
+    next.len() < shown.len() && shown.starts_with(next)
 }
 
 /// An `error` part's message: `{ name, message }`, or whatever it carries.
