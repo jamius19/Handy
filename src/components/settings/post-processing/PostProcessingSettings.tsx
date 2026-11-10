@@ -21,6 +21,7 @@ import {
 import { Button } from "../../ui/Button";
 import { ResetButton } from "../../ui/ResetButton";
 import { Input } from "../../ui/Input";
+import { Slider } from "../../ui/Slider";
 
 import { ProviderSelect } from "../PostProcessingSettingsApi/ProviderSelect";
 import { BaseUrlField } from "../PostProcessingSettingsApi/BaseUrlField";
@@ -164,7 +165,7 @@ const ProviderRouting: React.FC<ProviderRoutingProps> = ({
 const PostProcessingSettingsApiComponent: React.FC = () => {
   const { t } = useTranslation();
   const state = usePostProcessProviderState();
-  const { getSetting, updateSetting, isUpdating } = useSettings();
+  const { getSetting, updateSetting, resetSetting, isUpdating } = useSettings();
   const latencies = usePostProcessLatencies();
   const currentLatency = latencies.find(
     (latency) =>
@@ -387,6 +388,23 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
           placeholder={VERCEL_GATEWAY_OPTIONS_PLACEHOLDER}
         />
       )}
+
+      <Slider
+        value={getSetting("post_process_timeout_secs") ?? 5}
+        onChange={(value) => updateSetting("post_process_timeout_secs", value)}
+        onReset={() => resetSetting("post_process_timeout_secs")}
+        isResetting={isUpdating("post_process_timeout_secs")}
+        min={1}
+        max={30}
+        step={1}
+        label={t("settings.postProcessing.api.timeout.title")}
+        description={t("settings.postProcessing.api.timeout.description")}
+        descriptionMode="tooltip"
+        grouped={true}
+        formatValue={(value) =>
+          t("settings.postProcessing.latency.seconds", { value })
+        }
+      />
 
       <SettingContainer
         title={t("settings.postProcessing.api.latency.title")}

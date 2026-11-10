@@ -776,6 +776,10 @@
           "invalidJson": "Not valid JSON.",
           "notObject": "Must be a JSON object, like { \"sort\": \"ttft\" }."
         },
+        "timeout": {
+          "title": "超时",
+          "description": "后处理允许的最长时间，超过后将按原样粘贴转录文本。"
+        },
         "latency": {
           "title": "Latency",
           "description": "How long post-processing took for 3 in 4 (P75) and 9 in 10 (P90) of the last 100 successful runs with this provider and model.",

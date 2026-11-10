@@ -328,6 +328,14 @@ async changePostProcessVercelGatewayOptionsSetting(options: string | null) : Pro
     else return { status: "error", error: e  as any };
 }
 },
+async changePostProcessTimeoutSecsSetting(secs: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_post_process_timeout_secs_setting", { secs }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async changeOpenaiLiveTranscribeDelaySetting(delay: LiveTranscribeDelay) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_openai_live_transcribe_delay_setting", { delay }) };
@@ -1294,7 +1302,12 @@ post_process_openrouter_provider?: string | null;
  * requests, to order, filter or sort its providers; None sends none.
  * Other providers ignore it.
  */
-post_process_vercel_gateway_options?: string | null; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; mute_while_recording?: boolean; 
+post_process_vercel_gateway_options?: string | null; post_process_prompts?: LLMPrompt[]; post_process_selected_prompt_id?: string | null; 
+/**
+ * How long post-processing may take, in seconds, before the transcript
+ * is used as it is.
+ */
+post_process_timeout_secs?: number; mute_while_recording?: boolean; 
 /**
  * Lower the system output volume while recording. The settings UI keeps
  * this and `mute_while_recording` exclusive; mute wins if both are set.

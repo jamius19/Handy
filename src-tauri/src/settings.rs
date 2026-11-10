@@ -587,6 +587,10 @@ pub struct AppSettings {
     pub post_process_prompts: Vec<LLMPrompt>,
     #[serde(default)]
     pub post_process_selected_prompt_id: Option<String>,
+    /// How long post-processing may take, in seconds, before the transcript
+    /// is used as it is.
+    #[serde(default = "default_post_process_timeout_secs")]
+    pub post_process_timeout_secs: u64,
     #[serde(default)]
     pub mute_while_recording: bool,
     /// Lower the system output volume while recording. The settings UI keeps
@@ -819,6 +823,10 @@ fn default_theme() -> Theme {
 
 fn default_post_process_enabled() -> bool {
     false
+}
+
+fn default_post_process_timeout_secs() -> u64 {
+    5
 }
 
 fn default_app_language() -> String {
@@ -1155,6 +1163,7 @@ pub fn get_default_settings() -> AppSettings {
         post_process_vercel_gateway_options: None,
         post_process_prompts: default_post_process_prompts(),
         post_process_selected_prompt_id: None,
+        post_process_timeout_secs: default_post_process_timeout_secs(),
         mute_while_recording: false,
         duck_while_recording: false,
         duck_amount: default_duck_amount(),

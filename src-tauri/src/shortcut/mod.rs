@@ -1285,6 +1285,15 @@ pub fn change_post_process_vercel_gateway_options_setting(
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_post_process_timeout_secs_setting(app: AppHandle, secs: u64) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.post_process_timeout_secs = secs;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn change_deepgram_api_key_setting(app: AppHandle, api_key: String) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     settings.deepgram_api_key = settings::SecretString::new(api_key.trim().to_string());

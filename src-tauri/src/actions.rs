@@ -521,10 +521,14 @@ fn record_post_process_latency(
     }
 }
 
+/// `time_limited` bounds post-processing by the post-processing timeout, for
+/// a dictation waiting to be pasted; a file job waits for it instead, as a
+/// long recording's rewrite can take far longer.
 pub(crate) async fn process_transcription_output(
     app: &AppHandle,
     transcription: &str,
     post_process: bool,
+    time_limited: bool,
 ) -> ProcessedTranscription {
     let settings = get_settings(app);
     let mut final_text = transcription.to_string();
@@ -541,13 +545,27 @@ pub(crate) async fn process_transcription_output(
         });
         let mut structured_error = None;
         let started = Instant::now();
-        // A reply that's blank once cleaned is no better than none.
-        let outcome =
-            match post_process_transcription(&settings, &final_text, &mut structured_error).await {
-                PostProcessOutcome::Done(text) => non_blank_post_processed_text(text)
-                    .map_or(PostProcessOutcome::Failed, PostProcessOutcome::Done),
-                outcome => outcome,
-            };
+        // Past the timeout the transcript goes out as it is.
+        let timeout = Duration::from_secs(settings.post_process_timeout_secs);
+        let processing = post_process_transcription(&settings, &final_text, &mut structured_error);
+        let processed = if time_limited {
+            tokio::time::timeout(timeout, processing).await
+        } else {
+            Ok(processing.await)
+        };
+        let outcome = match processed {
+            // A reply that's blank once cleaned is no better than none.
+            Ok(PostProcessOutcome::Done(text)) => non_blank_post_processed_text(text)
+                .map_or(PostProcessOutcome::Failed, PostProcessOutcome::Done),
+            Ok(outcome) => outcome,
+            Err(_) => {
+                warn!(
+                    "Post-processing took longer than {}s. Falling back to original transcription.",
+                    settings.post_process_timeout_secs
+                );
+                PostProcessOutcome::Failed
+            }
+        };
         if let (PostProcessOutcome::Done(_), Some((provider, model))) = (&outcome, target) {
             record_post_process_latency(app, provider, model, started.elapsed());
             post_process_warning = if !reasoning_rejected_before
@@ -952,7 +970,12 @@ impl ShortcutAction for TranscribeAction {
                                 }
                             }
                             let Some(processed) = complete_unless_cancelled(
-                                process_transcription_output(&ah, &transcription, post_process),
+                                process_transcription_output(
+                                    &ah,
+                                    &transcription,
+                                    post_process,
+                                    true,
+                                ),
                                 || rm.was_cancelled_since(cancel_generation),
                             )
                             .await

@@ -173,6 +173,8 @@ const settingUpdaters: {
     commands.changePostProcessEnabledSetting(value as boolean),
   post_process_selected_prompt_id: (value) =>
     commands.setPostProcessSelectedPrompt(value as string),
+  post_process_timeout_secs: (value) =>
+    commands.changePostProcessTimeoutSecsSetting(value as number),
   post_process_openai_service_tier: (value) =>
     commands.changePostProcessOpenaiServiceTierSetting(
       value as OpenAiServiceTier,

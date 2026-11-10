@@ -776,6 +776,10 @@
           "invalidJson": "Not valid JSON.",
           "notObject": "Must be a JSON object, like { \"sort\": \"ttft\" }."
         },
+        "timeout": {
+          "title": "समय सीमा",
+          "description": "पोस्ट-प्रोसेसिंग को कितना समय लग सकता है, उसके बाद ट्रांसक्रिप्ट जैसा है वैसा ही पेस्ट हो जाता है।"
+        },
         "latency": {
           "title": "Latency",
           "description": "How long post-processing took for 3 in 4 (P75) and 9 in 10 (P90) of the last 100 successful runs with this provider and model.",
