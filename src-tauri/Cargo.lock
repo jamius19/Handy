@@ -2526,6 +2526,7 @@ version = "0.13.2"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "cc",
  "chrono",
  "clap",
  "earshot",

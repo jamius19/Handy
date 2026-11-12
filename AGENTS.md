@@ -64,6 +64,7 @@ Handy is a cross-platform desktop speech-to-text application built with Tauri 2.
 - `audio_toolkit/` - Low-level audio processing:
   - `audio/` - Recording sink (VAD, levels, live streaming feed), output devices, WAV I/O
   - `vad/` - Voice Activity Detection (Silero VAD)
+  - `time_stretch.rs` - Sonic speed change (pitch kept) for audio sent to cloud models
 - `commands/` - Tauri command handlers for frontend communication
 - `cli.rs` - CLI argument definitions (clap derive)
 - `shortcut.rs` - Global keyboard shortcut handling
@@ -111,6 +112,7 @@ Handy is a cross-platform desktop speech-to-text application built with Tauri 2.
 - `transcribe-cpp` (Silero VAD v6, CPU-only, in-process) / `earshot` - Voice Activity Detection
 - `rdev` - Global keyboard shortcuts
 - `rodio` - Audio playback for feedback sounds
+- Sonic (vendored C) - Speed change for audio sent to cloud models
 
 ### Application Flow
 
@@ -128,6 +130,19 @@ Settings are stored using Tauri's store plugin with reactive updates:
 - Audio devices (microphone/output selection)
 - Model preferences (Small/Medium/Turbo/Large Whisper variants)
 - Audio feedback and translation options
+
+### Cloud audio Speed
+
+`cloud_speed_percent` (100-200) speeds up, pitch kept, the audio sent to cloud models so less is billed.
+It runs after the VAD gate and before any provider conversion: in `LiveTranscription` (live; Sonic's tail is
+flushed before the provider commits, dropped on cancel/error) and in `cloud_transcription::transcribe` (batch,
+file jobs, retries; re-padded like a short recording). At 100 no Sonic stream exists and audio passes through.
+Sonic (Bill Cox, Apache-2.0) is vendored unmodified in `src-tauri/vendor/sonic` from
+https://github.com/waywardgeek/sonic at `1d7051354f32392a3b3cdb8a8bcfe56e6f8b744f`, built by `build.rs` with `cc`
+(SHA-256: sonic.c `4909103522577df1f791777b1465b6f641fe7312dd102ff2085d5ef50b434171`, sonic.h
+`9d5b3e2ac9f3fc116709d5c9390a3299d4c22b2d8f0e09a18f0cd75ae3a5dd91`, LICENSE
+`cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`); its licence is also bundled as
+`resources/licenses/sonic/LICENSE`.
 
 ### Single Instance Architecture
 

@@ -189,6 +189,8 @@ const settingUpdaters: {
     commands.changeOpenaiLiveTranscribeDelaySetting(
       value as LiveTranscribeDelay,
     ),
+  cloud_speed_percent: (value) =>
+    commands.changeCloudSpeedPercentSetting(value as number),
   deepgram_api_key: (value) =>
     commands.changeDeepgramApiKeySetting(value as string),
   openrouter_transcription_model: (value) =>

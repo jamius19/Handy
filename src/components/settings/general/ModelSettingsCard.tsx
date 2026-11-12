@@ -8,6 +8,7 @@ import { DeepgramApiKey } from "../DeepgramApiKey";
 import { OpenRouterSettings } from "../OpenRouterSettings";
 import { VercelGatewaySettings } from "../VercelGatewaySettings";
 import { LiveTranscribeDelay } from "../LiveTranscribeDelay";
+import { CloudSpeed } from "../CloudSpeed";
 import {
   cloudProviderOf,
   LIVE_CLOUD_MODEL_ID,
@@ -69,6 +70,7 @@ export const ModelSettingsCard: React.FC = () => {
       {isLiveCloud && (
         <LiveTranscribeDelay descriptionMode="tooltip" grouped={true} />
       )}
+      {provider && <CloudSpeed descriptionMode="tooltip" grouped={true} />}
       {showLanguageSelector && (
         <LanguageSelector
           descriptionMode="tooltip"

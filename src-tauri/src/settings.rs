@@ -534,6 +534,10 @@ pub struct AppSettings {
     /// model transcribes with.
     #[serde(default = "default_vercel_live_transcription_model")]
     pub vercel_live_transcription_model: String,
+    /// How much faster, in percent (100-200), cloud models are sent the audio;
+    /// 100 sends it as recorded. Local models ignore it.
+    #[serde(default = "default_cloud_speed_percent")]
+    pub cloud_speed_percent: u8,
     #[serde(default = "default_overlay_position")]
     pub overlay_position: OverlayPosition,
     #[serde(default = "default_debug_mode")]
@@ -807,6 +811,10 @@ fn default_recording_retention_period() -> RecordingRetentionPeriod {
 
 fn default_duck_amount() -> u8 {
     50
+}
+
+fn default_cloud_speed_percent() -> u8 {
+    100
 }
 
 fn default_audio_feedback_volume() -> f32 {
@@ -1134,6 +1142,7 @@ pub fn get_default_settings() -> AppSettings {
         openrouter_transcription_model: default_openrouter_transcription_model(),
         vercel_transcription_model: default_vercel_transcription_model(),
         vercel_live_transcription_model: default_vercel_live_transcription_model(),
+        cloud_speed_percent: default_cloud_speed_percent(),
         selected_microphone: None,
         selected_channel: None,
         clamshell_microphone: None,

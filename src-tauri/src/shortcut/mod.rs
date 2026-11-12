@@ -1371,6 +1371,15 @@ pub fn change_openai_live_transcribe_delay_setting(
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_cloud_speed_percent_setting(app: AppHandle, percent: u8) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.cloud_speed_percent = percent.clamp(100, 200);
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn set_post_process_provider(app: AppHandle, provider_id: String) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     validate_provider_exists(&settings, &provider_id)?;

@@ -36,7 +36,19 @@ fn main() {
     // Must run after transcribe staging because that helper recreates transcribe-libs/.
     stage_vc_runtime_dlls();
 
+    build_sonic();
+
     tauri_build::build()
+}
+
+/// Sonic (vendor/sonic, Apache-2.0): speeds up the audio sent to cloud models.
+fn build_sonic() {
+    println!("cargo:rerun-if-changed=vendor/sonic");
+    cc::Build::new()
+        .file("vendor/sonic/sonic.c")
+        .include("vendor/sonic")
+        .warnings(false)
+        .compile("sonic");
 }
 
 /// Link clang's compiler runtime, which provides `__isPlatformVersionAtLeast`.

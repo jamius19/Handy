@@ -393,6 +393,10 @@
           "high": "Accurate",
           "xhigh": "Most Accurate"
         }
+      },
+      "speed": {
+        "title": "Speed",
+        "description": "Speeds up the audio sent (pitch kept), so less is billed. Higher speeds can lower accuracy; services with a per-request minimum may not save."
       }
     },
     "general": {

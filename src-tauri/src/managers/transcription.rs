@@ -936,7 +936,7 @@ impl TranscriptionManager {
         model_id: &str,
     ) {
         let app_handle = self.app_handle.clone();
-        let session = LiveTranscription::start(&self.app_handle, provider, move |text| {
+        let mut session = LiveTranscription::start(&self.app_handle, provider, move |text| {
             emit_stream_text(&app_handle, text, "")
         });
         self.stream_active.store(true, Ordering::Release);

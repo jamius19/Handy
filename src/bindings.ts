@@ -344,6 +344,14 @@ async changeOpenaiLiveTranscribeDelaySetting(delay: LiveTranscribeDelay) : Promi
     else return { status: "error", error: e  as any };
 }
 },
+async changeCloudSpeedPercentSetting(percent: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_cloud_speed_percent_setting", { percent }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async changeDeepgramApiKeySetting(apiKey: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_deepgram_api_key_setting", { apiKey }) };
@@ -1283,7 +1291,12 @@ vercel_transcription_model?: string;
  * The streaming AI Gateway model id the Vercel AI Gateway Live cloud
  * model transcribes with.
  */
-vercel_live_transcription_model?: string; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; 
+vercel_live_transcription_model?: string; 
+/**
+ * How much faster, in percent (100-200), cloud models are sent the audio;
+ * 100 sends it as recorded. Local models ignore it.
+ */
+cloud_speed_percent?: number; overlay_position?: OverlayPosition; debug_mode?: boolean; log_level?: LogLevel; custom_words?: string[]; model_unload_timeout?: ModelUnloadTimeout; word_correction_threshold?: number; history_limit?: number; recording_retention_period?: RecordingRetentionPeriod; paste_method?: PasteMethod; clipboard_handling?: ClipboardHandling; auto_submit?: boolean; auto_submit_key?: AutoSubmitKey; post_process_enabled?: boolean; post_process_provider_id?: string; post_process_providers?: PostProcessProvider[]; post_process_api_keys?: SecretMap; post_process_models?: Partial<{ [key in string]: string }>; 
 /**
  * Reasoning level per provider id; a provider without one is Off.
  */

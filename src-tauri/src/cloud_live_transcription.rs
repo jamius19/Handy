@@ -9,9 +9,12 @@
 //! (`openai_live_transcription.rs`, `deepgram_live_transcription.rs`,
 //! `vercel_live_transcription.rs`).
 
+use crate::audio_toolkit::constants::WHISPER_SAMPLE_RATE;
+use crate::audio_toolkit::time_stretch::Stretcher;
 use crate::deepgram_live_transcription;
 use crate::managers::model::CloudProvider;
 use crate::openai_live_transcription;
+use crate::settings::get_settings;
 use crate::vercel_live_transcription;
 use anyhow::{anyhow, Result};
 use log::{debug, warn};
@@ -33,9 +36,12 @@ pub(crate) enum Command {
     Finish(LiveResult),
 }
 
-/// One recording's live transcription. Dropping it ends the session unused.
+/// One recording's live transcription. Dropping it ends the session unused
+/// and discards Sonic's tail.
 pub struct LiveTranscription {
     commands: mpsc::UnboundedSender<Command>,
+    /// Speeds the audio up before it is sent; `None` at 1.0x.
+    stretcher: Option<Stretcher>,
 }
 
 impl LiveTranscription {
@@ -48,6 +54,7 @@ impl LiveTranscription {
         on_text: impl Fn(&str) + Send + 'static,
     ) -> Self {
         let (commands, rx) = mpsc::unbounded_channel();
+        let stretcher = Stretcher::new(get_settings(app).cloud_speed_percent, WHISPER_SAMPLE_RATE);
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
             let mut reply = None;
@@ -76,19 +83,40 @@ impl LiveTranscription {
                 (None, Ok(_)) => debug!("Live transcription cancelled"),
             }
         });
-        Self { commands }
+        Self {
+            commands,
+            stretcher,
+        }
     }
 
-    /// Sends 16 kHz mono audio.
-    pub fn feed(&self, pcm: Vec<f32>) {
+    /// Sends 16 kHz mono audio, sped up when Speed is set.
+    pub fn feed(&mut self, pcm: Vec<f32>) {
+        let pcm = match &mut self.stretcher {
+            Some(stretcher) => match stretcher.push(pcm) {
+                Some(pcm) => pcm,
+                None => return,
+            },
+            None => pcm,
+        };
         let _ = self.commands.send(Command::Audio(pcm));
     }
 
     /// Ends the recording's audio. `reply` gets the final transcript, or the
     /// error that ended the session.
     pub fn finish(self, reply: LiveResult) {
+        let Self {
+            commands,
+            stretcher,
+        } = self;
+        // The tail Sonic held back goes before the provider commits; not when
+        // the session already failed.
+        if let Some(stretcher) = stretcher.filter(|_| !commands.is_closed()) {
+            if let Some(tail) = stretcher.finish() {
+                let _ = commands.send(Command::Audio(tail));
+            }
+        }
         if let Err(mpsc::error::SendError(Command::Finish(reply))) =
-            self.commands.send(Command::Finish(reply))
+            commands.send(Command::Finish(reply))
         {
             let _ = reply.send(Err(anyhow!(
                 "The live transcription session had already ended"
@@ -102,5 +130,106 @@ pub(crate) async fn closed(reply: &mut Option<LiveResult>) {
     match reply {
         Some(reply) => reply.closed().await,
         None => std::future::pending().await,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::audio_toolkit::time_stretch::voice;
+
+    fn session(percent: u8) -> (LiveTranscription, mpsc::UnboundedReceiver<Command>) {
+        let (commands, rx) = mpsc::unbounded_channel();
+        let stretcher = Stretcher::new(percent, 16_000);
+        (
+            LiveTranscription {
+                commands,
+                stretcher,
+            },
+            rx,
+        )
+    }
+
+    fn received(rx: &mut mpsc::UnboundedReceiver<Command>) -> Vec<Command> {
+        std::iter::from_fn(|| rx.try_recv().ok()).collect()
+    }
+
+    #[test]
+    fn speed_100_sends_the_same_buffers() {
+        let (mut live, mut rx) = session(100);
+        let pcm = vec![0.1, 0.2, 0.3];
+        let ptr = pcm.as_ptr();
+        live.feed(pcm);
+        match rx.try_recv() {
+            Ok(Command::Audio(sent)) => {
+                assert_eq!(sent.as_ptr(), ptr);
+                assert_eq!(sent, vec![0.1, 0.2, 0.3]);
+            }
+            _ => panic!("expected audio"),
+        }
+    }
+
+    #[test]
+    fn no_audio_then_drop_sends_nothing() {
+        let (live, mut rx) = session(200);
+        drop(live);
+        assert!(received(&mut rx).is_empty());
+    }
+
+    #[test]
+    fn finish_sends_the_tail_before_finish() {
+        let (mut live, mut rx) = session(200);
+        for chunk in voice(16_000, 2) {
+            live.feed(chunk);
+        }
+        let (reply, _result) = oneshot::channel();
+        live.finish(reply);
+        let commands = received(&mut rx);
+        let n = commands.len();
+        assert!(matches!(commands[n - 1], Command::Finish(_)));
+        assert!(matches!(commands[n - 2], Command::Audio(_)));
+        let mut total = 0;
+        for command in &commands[..n - 1] {
+            match command {
+                Command::Audio(pcm) => {
+                    assert!(!pcm.is_empty());
+                    total += pcm.len();
+                }
+                Command::Finish(_) => panic!("Finish before the end"),
+            }
+        }
+        assert!((total as f64 - 16_000.0).abs() <= 160.0, "{total} samples");
+    }
+
+    #[test]
+    fn drop_after_audio_sends_no_finish() {
+        let (mut live, mut rx) = session(200);
+        for chunk in voice(16_000, 2) {
+            live.feed(chunk);
+        }
+        drop(live);
+        let mut total = 0;
+        for command in received(&mut rx) {
+            match command {
+                Command::Audio(pcm) => total += pcm.len(),
+                Command::Finish(_) => panic!("Finish after a drop"),
+            }
+        }
+        assert!(total < 16_000);
+    }
+
+    #[test]
+    fn finish_after_the_session_ended_skips_the_tail() {
+        let (mut live, rx) = session(200);
+        for chunk in voice(16_000, 1) {
+            live.feed(chunk);
+        }
+        drop(rx);
+        let (reply, mut result) = oneshot::channel();
+        live.finish(reply);
+        match result.try_recv() {
+            Ok(Err(e)) => assert!(e.to_string().contains("already ended")),
+            _ => panic!("expected the already-ended error"),
+        }
     }
 }

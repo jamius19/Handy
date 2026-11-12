@@ -736,6 +736,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_post_process_vercel_gateway_options_setting,
             shortcut::change_post_process_timeout_secs_setting,
             shortcut::change_openai_live_transcribe_delay_setting,
+            shortcut::change_cloud_speed_percent_setting,
             shortcut::change_deepgram_api_key_setting,
             shortcut::change_openrouter_transcription_model_setting,
             shortcut::fetch_openrouter_transcription_models,

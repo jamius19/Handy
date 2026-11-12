@@ -4,6 +4,7 @@ pub mod constants;
 pub(crate) mod cpu_engine;
 pub mod lang_id;
 pub mod text;
+pub mod time_stretch;
 pub mod utils;
 pub mod vad;
 
