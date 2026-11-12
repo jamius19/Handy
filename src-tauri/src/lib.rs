@@ -32,6 +32,8 @@ mod secure_input;
 mod settings;
 mod shortcut;
 mod signal_handle;
+mod soniox_live_transcription;
+mod soniox_transcription;
 mod system_languages;
 mod transcription_coordinator;
 mod transcription_hook;
@@ -232,6 +234,10 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(history_manager.clone());
     app_handle.manage(tray::TrayState::new());
     app_handle.manage(TranscriptionJobManager::new(app_handle));
+
+    // With a Soniox key set, which Soniox models take strict language hints
+    // is known before the first dictation.
+    soniox_transcription::warm_catalogue(app_handle);
 
     // Note: Shortcuts are NOT initialized here.
     // The frontend is responsible for calling the `initialize_shortcuts` command
@@ -740,6 +746,11 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_openai_live_transcribe_delay_setting,
             shortcut::change_cloud_speed_percent_setting,
             shortcut::change_deepgram_api_key_setting,
+            shortcut::change_soniox_api_key_setting,
+            shortcut::change_soniox_region_setting,
+            shortcut::change_soniox_transcription_model_setting,
+            shortcut::change_soniox_live_transcription_model_setting,
+            shortcut::fetch_soniox_models,
             shortcut::change_openrouter_transcription_model_setting,
             shortcut::fetch_openrouter_transcription_models,
             shortcut::change_vercel_transcription_model_setting,

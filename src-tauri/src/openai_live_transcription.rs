@@ -7,7 +7,7 @@
 //! Realtime WebSocket session fed while the recording goes and committed
 //! when it stops, so only the last words are left to transcribe then.
 
-use crate::cloud_live_transcription::{closed, Command, LiveResult, LiveText};
+use crate::cloud_live_transcription::{closed, connect_within, Command, LiveResult, LiveText};
 use crate::openai_transcription::{api_key, hints};
 use crate::settings::get_settings;
 use anyhow::{anyhow, Context, Result};
@@ -63,9 +63,12 @@ pub(crate) async fn run(
     request
         .headers_mut()
         .insert(AUTHORIZATION, format!("Bearer {api_key}").parse()?);
-    let (socket, _) = tokio_tungstenite::connect_async(request)
-        .await
-        .context("Couldn't connect to the OpenAI Realtime API")?;
+    let (socket, _) = connect_within(
+        "the OpenAI Realtime API",
+        tokio_tungstenite::connect_async(request),
+    )
+    .await?
+    .context("Couldn't connect to the OpenAI Realtime API")?;
     debug!(
         "OpenAI Realtime session connected in {:?}",
         connect_started.elapsed()

@@ -144,6 +144,18 @@ pub enum LiveTranscribeDelay {
     Xhigh,
 }
 
+/// The region whose Soniox API the Soniox cloud models use; a project's key
+/// works only on its own region's.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq, Type)]
+#[serde(rename_all = "lowercase")]
+pub enum SonioxRegion {
+    #[default]
+    Us,
+    Eu,
+    Jp,
+    In,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct PostProcessProvider {
     pub id: String,
@@ -522,6 +534,20 @@ pub struct AppSettings {
     /// The key the Deepgram Nova-3 cloud model transcribes with.
     #[serde(default)]
     pub deepgram_api_key: SecretString,
+    /// The key the Soniox cloud models transcribe with.
+    #[serde(default)]
+    pub soniox_api_key: SecretString,
+    /// The region whose Soniox API the Soniox cloud models use.
+    #[serde(default)]
+    pub soniox_region: SonioxRegion,
+    /// The Soniox async model id (e.g. "stt-async-v6") the Soniox cloud
+    /// model transcribes with.
+    #[serde(default = "default_soniox_transcription_model")]
+    pub soniox_transcription_model: String,
+    /// The Soniox real-time model id (e.g. "stt-rt-v6") the Soniox Live
+    /// cloud model transcribes with.
+    #[serde(default = "default_soniox_live_transcription_model")]
+    pub soniox_live_transcription_model: String,
     /// The OpenRouter model id (e.g. "openai/whisper-large-v3-turbo") the
     /// OpenRouter cloud model transcribes with.
     #[serde(default = "default_openrouter_transcription_model")]
@@ -735,6 +761,14 @@ fn default_vercel_transcription_model() -> String {
 
 fn default_vercel_live_transcription_model() -> String {
     "openai/gpt-live-transcribe".to_string()
+}
+
+fn default_soniox_transcription_model() -> String {
+    "stt-async-v6".to_string()
+}
+
+fn default_soniox_live_transcription_model() -> String {
+    "stt-rt-v6".to_string()
 }
 
 fn default_overlay_position() -> OverlayPosition {
@@ -1139,6 +1173,10 @@ pub fn get_default_settings() -> AppSettings {
         spoken_languages: Vec::new(),
         openai_live_transcribe_delay: LiveTranscribeDelay::default(),
         deepgram_api_key: SecretString::default(),
+        soniox_api_key: SecretString::default(),
+        soniox_region: SonioxRegion::default(),
+        soniox_transcription_model: default_soniox_transcription_model(),
+        soniox_live_transcription_model: default_soniox_live_transcription_model(),
         openrouter_transcription_model: default_openrouter_transcription_model(),
         vercel_transcription_model: default_vercel_transcription_model(),
         vercel_live_transcription_model: default_vercel_live_transcription_model(),

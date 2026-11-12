@@ -5,6 +5,7 @@ import { LanguageSelector } from "../LanguageSelector";
 import { TranslateToEnglish } from "../TranslateToEnglish";
 import { CloudApiKey } from "../CloudApiKey";
 import { DeepgramApiKey } from "../DeepgramApiKey";
+import { SonioxSettings } from "../SonioxSettings";
 import { OpenRouterSettings } from "../OpenRouterSettings";
 import { VercelGatewaySettings } from "../VercelGatewaySettings";
 import { LiveTranscribeDelay } from "../LiveTranscribeDelay";
@@ -12,6 +13,7 @@ import { CloudSpeed } from "../CloudSpeed";
 import {
   cloudProviderOf,
   LIVE_CLOUD_MODEL_ID,
+  SONIOX_LIVE_CLOUD_MODEL_ID,
 } from "../../shared/modelTable/tableModel";
 import { useModelStore } from "../../../stores/modelStore";
 import type { CloudProvider, ModelInfo } from "@/bindings";
@@ -31,6 +33,7 @@ const API_KEY_FIELDS: Record<
   Deepgram: DeepgramApiKey,
   OpenRouter: OpenRouterSettings,
   VercelGateway: VercelGatewaySettings,
+  Soniox: SonioxSettings,
 };
 
 export const ModelSettingsCard: React.FC = () => {
@@ -46,6 +49,10 @@ export const ModelSettingsCard: React.FC = () => {
   const ApiKeyField = provider ? API_KEY_FIELDS[provider] : null;
   // Only GPT-Live-Transcribe has a delay.
   const isLiveCloud = currentModelInfo?.id === LIVE_CLOUD_MODEL_ID;
+  // Soniox bills a live stream for how long it's open, so Speed saves
+  // nothing there and isn't applied (`speeds_up_audio` in Rust).
+  const hasSpeed =
+    !!provider && currentModelInfo?.id !== SONIOX_LIVE_CLOUD_MODEL_ID;
   const hasAnySettings =
     showLanguageSelector || supportsTranslation || !!ApiKeyField;
 
@@ -70,7 +77,7 @@ export const ModelSettingsCard: React.FC = () => {
       {isLiveCloud && (
         <LiveTranscribeDelay descriptionMode="tooltip" grouped={true} />
       )}
-      {provider && <CloudSpeed descriptionMode="tooltip" grouped={true} />}
+      {hasSpeed && <CloudSpeed descriptionMode="tooltip" grouped={true} />}
       {showLanguageSelector && (
         <LanguageSelector
           descriptionMode="tooltip"

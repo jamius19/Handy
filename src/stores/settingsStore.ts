@@ -8,6 +8,7 @@ import type {
   ReasoningLevel,
   OpenAiServiceTier,
   LiveTranscribeDelay,
+  SonioxRegion,
   ChineseScript,
   TranscribeAcceleratorSetting,
   ShortcutActivation,
@@ -193,6 +194,14 @@ const settingUpdaters: {
     commands.changeCloudSpeedPercentSetting(value as number),
   deepgram_api_key: (value) =>
     commands.changeDeepgramApiKeySetting(value as string),
+  soniox_api_key: (value) =>
+    commands.changeSonioxApiKeySetting(value as string),
+  soniox_region: (value) =>
+    commands.changeSonioxRegionSetting(value as SonioxRegion),
+  soniox_transcription_model: (value) =>
+    commands.changeSonioxTranscriptionModelSetting(value as string),
+  soniox_live_transcription_model: (value) =>
+    commands.changeSonioxLiveTranscriptionModelSetting(value as string),
   openrouter_transcription_model: (value) =>
     commands.changeOpenrouterTranscriptionModelSetting(value as string),
   vercel_transcription_model: (value) =>

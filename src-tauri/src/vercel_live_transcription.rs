@@ -11,7 +11,7 @@
 //! envelope is the AI SDK's (`@ai-sdk/provider-utils`
 //! `transcription-stream-envelope`).
 
-use crate::cloud_live_transcription::{closed, Command, LiveResult, LiveText};
+use crate::cloud_live_transcription::{closed, connect_within, Command, LiveResult, LiveText};
 use crate::deepgram_live_transcription::joined;
 use crate::openai_live_transcription::Upsampler;
 use crate::settings::get_settings;
@@ -183,7 +183,12 @@ pub(crate) async fn run(
     let mut audio = Audio::for_model(&request.model);
     let rate = audio.rate();
 
-    let (mut sink, mut events) = connect(&api_key, &request, rate).await?.split();
+    // The first connect is bounded like any provider's; a reconnect has its own
+    // bound (`reconnect`).
+    let (mut sink, mut events) =
+        connect_within("the AI Gateway", connect(&api_key, &request, rate))
+            .await??
+            .split();
 
     let mut transcript = Transcript::default();
     // The text last sent to the overlay.

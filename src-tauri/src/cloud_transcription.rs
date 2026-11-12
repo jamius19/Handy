@@ -9,11 +9,12 @@ use crate::audio_toolkit::constants::WHISPER_SAMPLE_RATE;
 use crate::audio_toolkit::time_stretch::Stretcher;
 use crate::cloud_live_transcription::LiveText;
 use crate::deepgram_transcription;
-use crate::managers::model::{cloud_provider, CloudProvider};
+use crate::managers::model::{cloud_provider, speeds_up_audio, CloudProvider};
 use crate::managers::transcription::Transcription;
 use crate::openai_transcription;
 use crate::openrouter_transcription;
 use crate::settings::get_settings;
+use crate::soniox_transcription;
 use crate::vercel_transcription;
 use anyhow::{anyhow, Result};
 use log::{info, warn};
@@ -28,13 +29,19 @@ fn provider_of(model_id: &str) -> Result<CloudProvider> {
 /// Transcribe 16 kHz mono `samples` in one request to `model_id`'s API.
 pub async fn transcribe(app: &AppHandle, model_id: &str, samples: &[f32]) -> Result<Transcription> {
     let provider = provider_of(model_id)?;
-    let stretched = stretch_for_upload(get_settings(app).cloud_speed_percent, samples);
+    let percent = if speeds_up_audio(model_id) {
+        get_settings(app).cloud_speed_percent
+    } else {
+        100
+    };
+    let stretched = stretch_for_upload(percent, samples);
     let samples = stretched.as_deref().unwrap_or(samples);
     match provider {
         CloudProvider::OpenAi => openai_transcription::transcribe(app, samples).await,
         CloudProvider::Deepgram => deepgram_transcription::transcribe(app, samples).await,
         CloudProvider::OpenRouter => openrouter_transcription::transcribe(app, samples).await,
         CloudProvider::VercelGateway => vercel_transcription::transcribe(app, samples).await,
+        CloudProvider::Soniox => soniox_transcription::transcribe(app, samples).await,
     }
 }
 
@@ -77,6 +84,7 @@ pub async fn transcribe_recording(
                     CloudProvider::Deepgram => deepgram_transcription::finish_live(app, live),
                     CloudProvider::OpenRouter => openrouter_transcription::finish_live(app, live),
                     CloudProvider::VercelGateway => vercel_transcription::finish_live(app, live),
+                    CloudProvider::Soniox => soniox_transcription::finish_live(app, live),
                 });
             }
             Ok(Ok(_)) => info!("Live transcription produced no text; retrying in one request"),

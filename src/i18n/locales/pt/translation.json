@@ -345,6 +345,42 @@
         "description": "Your recordings are sent to Deepgram to transcribe with Nova-3.",
         "placeholder": "Paste your Deepgram API key"
       },
+      "sonioxApiKey": {
+        "title": "Soniox API Key",
+        "description": "Your recordings are sent to Soniox to transcribe.",
+        "placeholder": "Paste your Soniox API key"
+      },
+      "sonioxRegion": {
+        "title": "Soniox Region",
+        "description": "Where Soniox processes and keeps your recordings. Pick your Soniox project's region; its API key works only there.",
+        "regions": {
+          "us": "United States",
+          "eu": "European Union",
+          "jp": "Japan",
+          "in": "India"
+        }
+      },
+      "sonioxModel": {
+        "title": "Soniox Model",
+        "description": "The Soniox async model your recordings are sent to. Pick one from the list or type its id.",
+        "placeholder": "Pick or type a model id",
+        "refresh": "Refresh models",
+        "fetchFailed": "Couldn't Load Soniox Models"
+      },
+      "sonioxLiveModel": {
+        "title": "Soniox Model",
+        "description": "The Soniox model that transcribes as you speak. The list shows only real-time models.",
+        "placeholder": "Pick or type a model id",
+        "refresh": "Refresh models",
+        "fetchFailed": "Couldn't Load Soniox Models"
+      },
+      "sonioxFallbackModel": {
+        "title": "Fallback Model",
+        "description": "The Soniox async model used when live transcription fails and for file transcription. It's the Soniox model's model too.",
+        "placeholder": "Pick or type a model id",
+        "refresh": "Refresh models",
+        "fetchFailed": "Couldn't Load Soniox Models"
+      },
       "openRouterApiKey": {
         "title": "OpenRouter API Key",
         "description": "Your recordings are sent to OpenRouter to transcribe with the model you pick. The OpenRouter post-processing provider uses the same key.",

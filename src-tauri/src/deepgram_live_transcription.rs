@@ -9,7 +9,7 @@
 //! recording stops, `CloseStream` flushes the rest and the segments so far
 //! are the transcript.
 
-use crate::cloud_live_transcription::{closed, Command, LiveResult, LiveText};
+use crate::cloud_live_transcription::{closed, connect_within, Command, LiveResult, LiveText};
 use crate::deepgram_transcription::{
     api_key, authorization, single_language, Alternative, ErrorResponse, Request,
 };
@@ -110,8 +110,8 @@ pub(crate) async fn run(
     ws_request
         .headers_mut()
         .insert(AUTHORIZATION, authorization(&api_key).parse()?);
-    let (socket, _) = tokio_tungstenite::connect_async(ws_request)
-        .await
+    let (socket, _) = connect_within("Deepgram", tokio_tungstenite::connect_async(ws_request))
+        .await?
         .map_err(connect_error)?;
     debug!(
         "Deepgram stream connected in {:?} (language {})",

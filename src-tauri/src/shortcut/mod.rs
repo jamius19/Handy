@@ -24,8 +24,8 @@ use crate::settings::APPLE_INTELLIGENCE_DEFAULT_MODEL_ID;
 use crate::settings::{
     self, get_settings, AutoSubmitKey, ChineseScript, ClipboardHandling, KeyboardImplementation,
     LLMPrompt, LanguageDetectionMode, LiveTranscribeDelay, OpenAiServiceTier, OverlayPosition,
-    OverlayStyle, PasteMethod, ReasoningLevel, ShortcutActivation, ShortcutBinding, SoundTheme,
-    Theme, TypingTool, VadBackend, APPLE_INTELLIGENCE_PROVIDER_ID,
+    OverlayStyle, PasteMethod, ReasoningLevel, ShortcutActivation, ShortcutBinding, SonioxRegion,
+    SoundTheme, Theme, TypingTool, VadBackend, APPLE_INTELLIGENCE_PROVIDER_ID,
 };
 use crate::tray;
 
@@ -1299,6 +1299,60 @@ pub fn change_deepgram_api_key_setting(app: AppHandle, api_key: String) -> Resul
     settings.deepgram_api_key = settings::SecretString::new(api_key.trim().to_string());
     settings::write_settings(&app, settings);
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_soniox_api_key_setting(app: AppHandle, api_key: String) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.soniox_api_key = settings::SecretString::new(api_key.trim().to_string());
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_soniox_region_setting(app: AppHandle, region: SonioxRegion) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.soniox_region = region;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_soniox_transcription_model_setting(
+    app: AppHandle,
+    model: String,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.soniox_transcription_model = model.trim().to_string();
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_soniox_live_transcription_model_setting(
+    app: AppHandle,
+    model: String,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.soniox_live_transcription_model = model.trim().to_string();
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+/// The ids of Soniox's models, for the Soniox cloud models' pickers, by
+/// whether they stream or run as a job.
+#[tauri::command]
+#[specta::specta]
+pub async fn fetch_soniox_models(
+    app: AppHandle,
+) -> Result<crate::soniox_transcription::SonioxModels, String> {
+    crate::soniox_transcription::fetch_models(&app)
+        .await
+        .map_err(|e| format!("{e:#}"))
 }
 
 #[tauri::command]

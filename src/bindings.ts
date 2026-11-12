@@ -360,6 +360,50 @@ async changeDeepgramApiKeySetting(apiKey: string) : Promise<Result<null, string>
     else return { status: "error", error: e  as any };
 }
 },
+async changeSonioxApiKeySetting(apiKey: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_soniox_api_key_setting", { apiKey }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeSonioxRegionSetting(region: SonioxRegion) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_soniox_region_setting", { region }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeSonioxTranscriptionModelSetting(model: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_soniox_transcription_model_setting", { model }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeSonioxLiveTranscriptionModelSetting(model: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_soniox_live_transcription_model_setting", { model }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The ids of Soniox's models, for the Soniox cloud models' pickers, by
+ * whether they stream or run as a job.
+ */
+async fetchSonioxModels() : Promise<Result<SonioxModels, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("fetch_soniox_models") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async changeOpenrouterTranscriptionModelSetting(model: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_openrouter_transcription_model_setting", { model }) };
@@ -1293,6 +1337,24 @@ openai_live_transcribe_delay?: LiveTranscribeDelay;
  */
 deepgram_api_key?: SecretString; 
 /**
+ * The key the Soniox cloud models transcribe with.
+ */
+soniox_api_key?: SecretString; 
+/**
+ * The region whose Soniox API the Soniox cloud models use.
+ */
+soniox_region?: SonioxRegion; 
+/**
+ * The Soniox async model id (e.g. "stt-async-v6") the Soniox cloud
+ * model transcribes with.
+ */
+soniox_transcription_model?: string; 
+/**
+ * The Soniox real-time model id (e.g. "stt-rt-v6") the Soniox Live
+ * cloud model transcribes with.
+ */
+soniox_live_transcription_model?: string; 
+/**
  * The OpenRouter model id (e.g. "openai/whisper-large-v3-turbo") the
  * OpenRouter cloud model transcribes with.
  */
@@ -1427,7 +1489,7 @@ export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
 /**
  * The API a cloud model runs on.
  */
-export type CloudProvider = "OpenAi" | "Deepgram" | "OpenRouter" | "VercelGateway"
+export type CloudProvider = "OpenAi" | "Deepgram" | "OpenRouter" | "VercelGateway" | "Soniox"
 export type CustomSounds = { start: boolean; stop: boolean }
 export type GpuDeviceOption = { id: string; name: string; total_vram_mb: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean; 
@@ -1733,6 +1795,23 @@ export type ShortcutActivation =
  */
 "hold_or_toggle"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
+/**
+ * Soniox's model ids for the Soniox cloud models' pickers, by how they run.
+ */
+export type SonioxModels = { 
+/**
+ * Real-time models, which stream.
+ */
+live: string[]; 
+/**
+ * Async models, which run as a job.
+ */
+batch: string[] }
+/**
+ * The region whose Soniox API the Soniox cloud models use; a project's key
+ * works only on its own region's.
+ */
+export type SonioxRegion = "us" | "eu" | "jp" | "in"
 export type SoundTheme = "marimba" | "pop" | "custom"
 /**
  * Phase of the streaming overlay card, emitted to drive its UI state.

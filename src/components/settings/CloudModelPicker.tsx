@@ -17,7 +17,9 @@ import { notify } from "../../stores/noticeStore";
 type ModelSettingKey =
   | "openrouter_transcription_model"
   | "vercel_transcription_model"
-  | "vercel_live_transcription_model";
+  | "vercel_live_transcription_model"
+  | "soniox_transcription_model"
+  | "soniox_live_transcription_model";
 
 interface CloudModelPickerProps {
   setting: ModelSettingKey;

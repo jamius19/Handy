@@ -56,6 +56,15 @@ pub const OPENAI_LIVE_CLOUD_MODEL_ID: &str = "openai-gpt-live-transcribe";
 /// otherwise (see `deepgram_transcription.rs`).
 pub const DEEPGRAM_NOVA3_MODEL_ID: &str = "deepgram-nova-3";
 
+/// Runs the Soniox async model picked in settings as a job once the
+/// recording stops (see `soniox_transcription.rs`).
+pub const SONIOX_CLOUD_MODEL_ID: &str = "soniox";
+
+/// Streams to the Soniox real-time model picked in settings while the
+/// recording goes (see `soniox_live_transcription.rs`). Without a live
+/// result, and for file jobs, the Soniox model runs instead.
+pub const SONIOX_LIVE_CLOUD_MODEL_ID: &str = "soniox-live";
+
 /// Runs the OpenRouter transcription model picked in settings (see
 /// `openrouter_transcription.rs`).
 pub const OPENROUTER_CLOUD_MODEL_ID: &str = "openrouter-transcribe";
@@ -75,6 +84,7 @@ pub enum CloudProvider {
     Deepgram,
     OpenRouter,
     VercelGateway,
+    Soniox,
 }
 
 /// Whisper's languages (99, from its tokenizer).
@@ -183,6 +193,31 @@ pub const CLOUD_MODELS: &[CloudModel] = &[
         detects_language: true,
         languages: WHISPER_LANGUAGES,
     },
+    // Soniox's catalogue lists real-time and async models; whether a model
+    // streams is fixed per row, so each kind gets a row. Both tag each token
+    // with the language it was heard in.
+    CloudModel {
+        id: SONIOX_CLOUD_MODEL_ID,
+        provider: CloudProvider::Soniox,
+        name: "Soniox",
+        description: "Transcribes in the cloud with the Soniox model you pick, using your Soniox API key.",
+        accuracy_score: 0.95,
+        speed_score: 0.8,
+        streams: false,
+        detects_language: true,
+        languages: crate::soniox_transcription::SUPPORTED_LANGUAGES,
+    },
+    CloudModel {
+        id: SONIOX_LIVE_CLOUD_MODEL_ID,
+        provider: CloudProvider::Soniox,
+        name: "Soniox Live",
+        description: "Transcribes in the cloud as you speak, with your Soniox API key.",
+        accuracy_score: 0.9,
+        speed_score: 0.95,
+        streams: true,
+        detects_language: true,
+        languages: crate::soniox_transcription::SUPPORTED_LANGUAGES,
+    },
 ];
 
 impl CloudModel {
@@ -215,6 +250,15 @@ impl CloudModel {
 /// `model_id`'s row in [`CLOUD_MODELS`], or `None` for a local model.
 pub fn cloud_model(model_id: &str) -> Option<&'static CloudModel> {
     CLOUD_MODELS.iter().find(|model| model.id == model_id)
+}
+
+/// Whether the Speed setting speeds up the audio sent for `model_id`. Not
+/// for Soniox Live: Soniox bills a stream for how long it's open, not for
+/// the audio sent, so a sped-up stream costs the same and is less accurate.
+/// Its fallback and file jobs are sent as recorded too, as its settings hide
+/// Speed.
+pub fn speeds_up_audio(model_id: &str) -> bool {
+    model_id != SONIOX_LIVE_CLOUD_MODEL_ID
 }
 
 /// The API `model_id` runs on, or `None` for a local model.

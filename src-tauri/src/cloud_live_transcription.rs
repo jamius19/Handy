@@ -7,19 +7,41 @@
 //! audio is sent as it is recorded and the final transcript comes back once
 //! the recording stops. Each provider runs its own WebSocket session
 //! (`openai_live_transcription.rs`, `deepgram_live_transcription.rs`,
-//! `vercel_live_transcription.rs`).
+//! `vercel_live_transcription.rs`, `soniox_live_transcription.rs`).
 
 use crate::audio_toolkit::constants::WHISPER_SAMPLE_RATE;
 use crate::audio_toolkit::time_stretch::Stretcher;
 use crate::deepgram_live_transcription;
-use crate::managers::model::CloudProvider;
+use crate::managers::model::{speeds_up_audio, CloudProvider};
 use crate::openai_live_transcription;
 use crate::settings::get_settings;
+use crate::soniox_live_transcription;
 use crate::vercel_live_transcription;
 use anyhow::{anyhow, Result};
 use log::{debug, warn};
+use std::future::Future;
+use std::time::Duration;
 use tauri::AppHandle;
 use tokio::sync::{mpsc, oneshot};
+
+/// How long a live session's WebSocket may take to open.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// `connecting`, the opening of a live session's WebSocket to `provider`,
+/// given up on after [`CONNECT_TIMEOUT`].
+pub(crate) async fn connect_within<T>(
+    provider: &str,
+    connecting: impl Future<Output = T>,
+) -> Result<T> {
+    tokio::time::timeout(CONNECT_TIMEOUT, connecting)
+        .await
+        .map_err(|_| {
+            anyhow!(
+                "Couldn't connect to {provider} within {}s",
+                CONNECT_TIMEOUT.as_secs()
+            )
+        })
+}
 
 /// A live session's final transcript.
 pub struct LiveText {
@@ -45,16 +67,21 @@ pub struct LiveTranscription {
 }
 
 impl LiveTranscription {
-    /// Connects to `provider` in the background; audio fed before the
-    /// session is up waits for it. `on_text` gets the transcript so far each
-    /// time it changes.
+    /// Connects to `provider` in the background to stream to `model_id`;
+    /// audio fed before the session is up waits for it. `on_text` gets the
+    /// transcript so far each time it changes.
     pub fn start(
         app: &AppHandle,
         provider: CloudProvider,
+        model_id: &str,
         on_text: impl Fn(&str) + Send + 'static,
     ) -> Self {
         let (commands, rx) = mpsc::unbounded_channel();
-        let stretcher = Stretcher::new(get_settings(app).cloud_speed_percent, WHISPER_SAMPLE_RATE);
+        let stretcher = if speeds_up_audio(model_id) {
+            Stretcher::new(get_settings(app).cloud_speed_percent, WHISPER_SAMPLE_RATE)
+        } else {
+            None
+        };
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
             let mut reply = None;
@@ -71,6 +98,9 @@ impl LiveTranscription {
                 }
                 CloudProvider::VercelGateway => {
                     vercel_live_transcription::run(&app, rx, &mut reply, on_text).await
+                }
+                CloudProvider::Soniox => {
+                    soniox_live_transcription::run(&app, rx, &mut reply, on_text).await
                 }
             };
             match (reply, result) {
