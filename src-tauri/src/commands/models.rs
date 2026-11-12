@@ -188,6 +188,10 @@ pub fn switch_active_model(app: &AppHandle, model_id: &str) -> Result<(), String
     if cloud && transcription_manager.is_model_loaded() {
         transcription_manager.request_unload();
     }
+    // A cloud model is ready once selected, so a model notice raised before is stale.
+    if cloud {
+        notices::clear_model_notices(app);
+    }
 
     // Skip eager loading if unload is set to "Immediately" — the model
     // will be loaded on-demand during the next transcription.

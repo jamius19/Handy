@@ -210,6 +210,16 @@ pub fn clear_matching(app: &AppHandle, source: NoticeSource, code: Option<Notice
     }
 }
 
+/// Clears the model notices once a model is ready: a local one loaded or a cloud one selected.
+/// Only these codes, as the sources' other notices aren't about the model.
+pub fn clear_model_notices(app: &AppHandle) {
+    for source in [NoticeSource::Dictation, NoticeSource::Model] {
+        for code in [NoticeCode::ModelLoadFailed, NoticeCode::NoModelSelected] {
+            clear_matching(app, source, Some(code));
+        }
+    }
+}
+
 pub fn tray_headline(app: &AppHandle) -> Option<Notice> {
     let store = app.state::<NoticeStore>();
     let active = store.lock();

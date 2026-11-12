@@ -684,12 +684,7 @@ impl TranscriptionManager {
                 error: None,
             },
         );
-        // Only this code: the source's other notices aren't about the model.
-        for source in [NoticeSource::Dictation, NoticeSource::Model] {
-            for code in [NoticeCode::ModelLoadFailed, NoticeCode::NoModelSelected] {
-                notices::clear_matching(&self.app_handle, source, Some(code));
-            }
-        }
+        notices::clear_model_notices(&self.app_handle);
 
         let load_duration = load_start.elapsed();
         debug!(
